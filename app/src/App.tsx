@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Wallet, 
-  Bot, 
-  BarChart3, 
-  PieChart, 
-  Settings, 
+import {
+  TrendingUp,
+  Wallet,
+  Bot,
+  BarChart3,
+  PieChart,
+  Settings,
   Activity,
   DollarSign,
   Target,
@@ -16,7 +16,9 @@ import {
   ArrowDownRight,
   Play,
   Pause,
-  AlertCircle
+  AlertCircle,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,12 +29,12 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   AreaChart,
   Area,
@@ -319,6 +321,12 @@ function App() {
   const [dailyProfit, setDailyProfit] = useState(124.50);
   const [totalProfit] = useState(4200.00);
   const [activeTrades] = useState(3);
+  const [darkMode, setDarkMode] = useState(true);
+
+  // Apply dark class to <html> so shadcn CSS variables work correctly
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
 
   // Simulate bot activity
   useEffect(() => {
@@ -354,7 +362,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-slate-900'}`}>
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -370,26 +378,37 @@ function App() {
                 <p className="text-xs text-slate-400">AI-Powered Trading Bot</p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-6">
+
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${botRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-                <span className="text-sm text-slate-400">
+                <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                   {botRunning ? 'Bot Active' : 'Bot Idle'}
                 </span>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-400">Daily P&L</p>
+                <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Daily P&L</p>
                 <p className={`font-mono font-bold ${dailyProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {dailyProfit >= 0 ? '+' : ''}${dailyProfit.toFixed(2)}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-400">Total P&L</p>
+                <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Total P&L</p>
                 <p className="font-mono font-bold text-emerald-400">
                   +${totalProfit.toLocaleString()}
                 </p>
               </div>
+              {/* Theme Toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 ${darkMode
+                    ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
+                    : 'bg-white text-slate-700 hover:bg-gray-100 shadow-sm border border-gray-200'
+                  }`}
+                title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
             </div>
           </div>
         </div>
@@ -398,20 +417,45 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="grid grid-cols-4 gap-4 bg-slate-900/50 p-1 rounded-xl">
-            <TabsTrigger value="dashboard" className="data-[state=active]:bg-slate-800">
+          <TabsList className={`grid grid-cols-4 gap-1 p-1 rounded-xl w-full ${darkMode ? 'bg-slate-900/80' : 'bg-slate-200'
+            }`}>
+            <TabsTrigger
+              value="dashboard"
+              className={`data-[state=active]:text-white ${darkMode
+                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                }`}
+            >
               <Activity className="w-4 h-4 mr-2" />
               Dashboard
             </TabsTrigger>
-            <TabsTrigger value="strategies" className="data-[state=active]:bg-slate-800">
+            <TabsTrigger
+              value="strategies"
+              className={`data-[state=active]:text-white ${darkMode
+                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                }`}
+            >
               <Zap className="w-4 h-4 mr-2" />
               Strategies
             </TabsTrigger>
-            <TabsTrigger value="holdings" className="data-[state=active]:bg-slate-800">
+            <TabsTrigger
+              value="holdings"
+              className={`data-[state=active]:text-white ${darkMode
+                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                }`}
+            >
               <PieChart className="w-4 h-4 mr-2" />
               Long-term Holdings
             </TabsTrigger>
-            <TabsTrigger value="bot" className="data-[state=active]:bg-slate-800">
+            <TabsTrigger
+              value="bot"
+              className={`data-[state=active]:text-white ${darkMode
+                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                }`}
+            >
               <Bot className="w-4 h-4 mr-2" />
               Trading Bot
             </TabsTrigger>
@@ -480,8 +524,8 @@ function App() {
                     <Bot className={`w-8 h-8 ${botRunning ? 'text-emerald-400' : 'text-slate-400'}`} />
                   </div>
                   <div className="mt-4">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className={`w-full ${botRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
                       onClick={() => setBotRunning(!botRunning)}
                     >
@@ -505,29 +549,29 @@ function App() {
                     <AreaChart data={performanceData}>
                       <defs>
                         <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis dataKey="date" stroke="#64748b" />
                       <YAxis stroke="#64748b" />
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
                         labelStyle={{ color: '#94a3b8' }}
                       />
-                      <Area 
-                        type="monotone" 
-                        dataKey="value" 
-                        stroke="#10b981" 
-                        fillOpacity={1} 
-                        fill="url(#colorValue)" 
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#10b981"
+                        fillOpacity={1}
+                        fill="url(#colorValue)"
                         name="Your Performance"
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="btc" 
-                        stroke="#f59e0b" 
+                      <Line
+                        type="monotone"
+                        dataKey="btc"
+                        stroke="#f59e0b"
                         strokeDasharray="5 5"
                         name="BTC"
                       />
@@ -557,7 +601,7 @@ function App() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
                       />
                     </RePieChart>
@@ -664,9 +708,9 @@ function App() {
                         <CardTitle className="text-white">{strategy.name}</CardTitle>
                         <CardDescription className="mt-2">{strategy.description}</CardDescription>
                       </div>
-                      <Switch 
+                      <Switch
                         checked={strategy.active}
-                        onCheckedChange={() => {}}
+                        onCheckedChange={() => { }}
                       />
                     </div>
                   </CardHeader>
@@ -703,8 +747,8 @@ function App() {
                       </div>
                     </div>
 
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="w-full border-slate-700"
                       onClick={() => setSelectedStrategy(strategy)}
                     >
@@ -727,7 +771,7 @@ function App() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis dataKey="name" stroke="#64748b" />
                     <YAxis stroke="#64748b" />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
                     />
                     <Bar dataKey="performance" fill="#10b981" name="Performance (%)" />
@@ -754,7 +798,7 @@ function App() {
             <Alert className="bg-slate-800 border-slate-700">
               <AlertCircle className="w-4 h-4 text-cyan-400" />
               <AlertDescription className="text-slate-300">
-                Based on current market analysis, macro trends, and on-chain data. 
+                Based on current market analysis, macro trends, and on-chain data.
                 Recommendations updated daily. Always DYOR (Do Your Own Research).
               </AlertDescription>
             </Alert>
@@ -843,12 +887,12 @@ function App() {
                           <Cell key={`cell-${index}`} fill={['#F7931A', '#627EEA', '#00FFA3', '#375BD2'][index]} />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }}
                       />
                     </RePieChart>
                   </ResponsiveContainer>
-                  
+
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-white">Portfolio Summary</h3>
                     <div className="space-y-3">
@@ -883,15 +927,15 @@ function App() {
                 <p className="text-slate-400">Set up your automated trading parameters</p>
               </div>
               <div className="flex items-center gap-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="border-slate-700"
                   onClick={() => setShowConfigDialog(true)}
                 >
                   <Settings className="w-4 h-4 mr-2" />
                   Advanced Settings
                 </Button>
-                <Button 
+                <Button
                   className={`${botRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
                   onClick={() => setBotRunning(!botRunning)}
                 >
@@ -912,8 +956,8 @@ function App() {
                     <div>
                       <h3 className="text-xl font-bold text-white">Trading Bot {botRunning ? 'Active' : 'Idle'}</h3>
                       <p className="text-slate-400">
-                        {botRunning 
-                          ? 'Monitoring markets and executing trades...' 
+                        {botRunning
+                          ? 'Monitoring markets and executing trades...'
                           : 'Configure settings and start to begin trading'}
                       </p>
                     </div>
@@ -941,10 +985,10 @@ function App() {
                       <label className="text-sm text-slate-300">Risk Level</label>
                       <span className="text-sm font-medium text-cyan-400">{riskLevel}%</span>
                     </div>
-                    <Slider 
-                      value={[riskLevel]} 
+                    <Slider
+                      value={[riskLevel]}
                       onValueChange={(v) => setRiskLevel(v[0])}
-                      max={100} 
+                      max={100}
                       step={10}
                       className="w-full"
                     />
@@ -959,10 +1003,10 @@ function App() {
                       <label className="text-sm text-slate-300">Max Trade Amount</label>
                       <span className="text-sm font-medium text-cyan-400">${tradeAmount}</span>
                     </div>
-                    <Slider 
-                      value={[tradeAmount]} 
+                    <Slider
+                      value={[tradeAmount]}
                       onValueChange={(v) => setTradeAmount(v[0])}
-                      max={1000} 
+                      max={1000}
                       step={50}
                       className="w-full"
                     />
@@ -1080,24 +1124,24 @@ function App() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm text-slate-300">Target Profit (%)</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 defaultValue={selectedStrategy?.minProfit}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm text-slate-300">Stop Loss (%)</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 defaultValue={selectedStrategy?.maxLoss}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm text-slate-300">Max Position Size (USDT)</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 defaultValue={100}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
               />
@@ -1127,13 +1171,13 @@ function App() {
             <div className="bg-slate-800 rounded-lg p-4">
               <h4 className="font-medium text-white mb-2">Binance API</h4>
               <div className="space-y-2">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="API Key"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
                 />
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   placeholder="API Secret"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
                 />
@@ -1141,8 +1185,8 @@ function App() {
             </div>
             <div className="space-y-2">
               <label className="text-sm text-slate-300">Trading Pairs (comma separated)</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 defaultValue="BTCUSDT,ETHUSDT,SOLUSDT"
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
               />
