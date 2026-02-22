@@ -171,7 +171,7 @@ async function executeScalpingTrade(strategy: any) {
   const tradeAmount = strategy.amount / currentPrice;
   
   // Simulate trade execution
-  const trade = {
+  const trade: { id: string; symbol: string; type: string; amount: number; price: number; timestamp: Date; profit: number | null; status: string } = {
     id: Date.now().toString(),
     symbol: strategy.symbol,
     type: 'buy',
@@ -204,7 +204,7 @@ async function executeSwingTrade(strategy: any) {
   const currentPrice = prices[strategy.symbol];
   const tradeAmount = strategy.amount / currentPrice;
   
-  const trade = {
+  const trade: { id: string; symbol: string; type: string; amount: number; price: number; timestamp: Date; profit: number | null; status: string } = {
     id: Date.now().toString(),
     symbol: strategy.symbol,
     type: Math.random() > 0.5 ? 'buy' : 'sell',
