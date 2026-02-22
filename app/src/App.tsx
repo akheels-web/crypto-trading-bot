@@ -1188,7 +1188,10 @@ function App() {
                 step={0.05}
                 min={0.05}
                 max={20}
-                onChange={(e) => setConfigEdit(prev => ({ ...prev, minProfit: parseFloat(e.target.value) || 0 }))}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) setConfigEdit(c => ({ ...c, minProfit: val }));
+                }}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-emerald-500 outline-none transition-colors"
               />
               <p className="text-xs text-slate-500">Bot will take profit when this % gain is reached</p>
@@ -1204,7 +1207,10 @@ function App() {
                 step={0.05}
                 min={0.05}
                 max={10}
-                onChange={(e) => setConfigEdit(prev => ({ ...prev, maxLoss: parseFloat(e.target.value) || 0 }))}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) setConfigEdit(c => ({ ...c, maxLoss: val }));
+                }}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-red-500 outline-none transition-colors"
               />
               <p className="text-xs text-slate-500">Bot will cut losses when this % drop is reached</p>
@@ -1220,7 +1226,10 @@ function App() {
                 step={10}
                 min={10}
                 max={1000}
-                onChange={(e) => setConfigEdit(prev => ({ ...prev, positionSize: parseInt(e.target.value) || 10 }))}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val)) setConfigEdit(c => ({ ...c, positionSize: val }));
+                }}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 outline-none transition-colors"
               />
               <p className="text-xs text-slate-500">Maximum amount per trade (min $10, max $1,000)</p>
