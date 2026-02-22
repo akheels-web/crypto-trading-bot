@@ -314,7 +314,10 @@ const longTermHoldings = [
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [botRunning, setBotRunning] = useState(false);
+  const [strategies, setStrategies] = useState<Strategy[]>(tradingStrategies);
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
+  const [configEdit, setConfigEdit] = useState({ minProfit: 0, maxLoss: 0, positionSize: 100 });
+  const [saveMessage, setSaveMessage] = useState('');
   const [riskLevel, setRiskLevel] = useState(50);
   const [tradeAmount, setTradeAmount] = useState(100);
   const [showConfigDialog, setShowConfigDialog] = useState(false);
@@ -322,6 +325,29 @@ function App() {
   const [totalProfit] = useState(4200.00);
   const [activeTrades] = useState(3);
   const [darkMode, setDarkMode] = useState(true);
+
+  const openStrategyConfig = (strategy: Strategy) => {
+    setSelectedStrategy(strategy);
+    setConfigEdit({ minProfit: strategy.minProfit, maxLoss: strategy.maxLoss, positionSize: 100 });
+  };
+
+  const saveStrategyConfig = () => {
+    if (!selectedStrategy) return;
+    setStrategies(prev => prev.map(s =>
+      s.id === selectedStrategy.id
+        ? { ...s, minProfit: configEdit.minProfit, maxLoss: configEdit.maxLoss }
+        : s
+    ));
+    setSaveMessage(`✓ ${selectedStrategy.name} saved!`);
+    setTimeout(() => setSaveMessage(''), 3000);
+    setSelectedStrategy(null);
+  };
+
+  const toggleStrategy = (id: string) => {
+    setStrategies(prev => prev.map(s =>
+      s.id === id ? { ...s, active: !s.active } : s
+    ));
+  };
 
   // Apply dark class to <html> so shadcn CSS variables work correctly
   useEffect(() => {
@@ -402,8 +428,8 @@ function App() {
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110 ${darkMode
-                    ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
-                    : 'bg-white text-slate-700 hover:bg-gray-100 shadow-sm border border-gray-200'
+                  ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
+                  : 'bg-white text-slate-700 hover:bg-gray-100 shadow-sm border border-gray-200'
                   }`}
                 title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
@@ -422,8 +448,8 @@ function App() {
             <TabsTrigger
               value="dashboard"
               className={`data-[state=active]:text-white ${darkMode
-                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
-                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
                 }`}
             >
               <Activity className="w-4 h-4 mr-2" />
@@ -432,8 +458,8 @@ function App() {
             <TabsTrigger
               value="strategies"
               className={`data-[state=active]:text-white ${darkMode
-                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
-                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
                 }`}
             >
               <Zap className="w-4 h-4 mr-2" />
@@ -442,8 +468,8 @@ function App() {
             <TabsTrigger
               value="holdings"
               className={`data-[state=active]:text-white ${darkMode
-                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
-                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
                 }`}
             >
               <PieChart className="w-4 h-4 mr-2" />
@@ -452,8 +478,8 @@ function App() {
             <TabsTrigger
               value="bot"
               className={`data-[state=active]:text-white ${darkMode
-                  ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
-                  : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
+                ? 'text-slate-400 data-[state=active]:bg-slate-700 hover:text-slate-200'
+                : 'text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 hover:text-slate-800'
                 }`}
             >
               <Bot className="w-4 h-4 mr-2" />
@@ -699,18 +725,30 @@ function App() {
               </Button>
             </div>
 
+            {saveMessage && (
+              <div className="fixed top-20 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-pulse">
+                <span className="text-sm font-medium">{saveMessage}</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {tradingStrategies.map((strategy) => (
-                <Card key={strategy.id} className="bg-slate-900 border-slate-800">
+              {strategies.map((strategy) => (
+                <Card key={strategy.id} className={`border-2 transition-all duration-200 ${strategy.active ? 'bg-slate-900 border-emerald-500/40' : 'bg-slate-900 border-slate-800 opacity-75'
+                  }`}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
-                        <CardTitle className="text-white">{strategy.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-white">{strategy.name}</CardTitle>
+                          <Badge className={strategy.active ? 'bg-emerald-500 text-white text-xs' : 'bg-slate-700 text-slate-400 text-xs'}>
+                            {strategy.active ? 'ON' : 'OFF'}
+                          </Badge>
+                        </div>
                         <CardDescription className="mt-2">{strategy.description}</CardDescription>
                       </div>
                       <Switch
                         checked={strategy.active}
-                        onCheckedChange={() => { }}
+                        onCheckedChange={() => toggleStrategy(strategy.id)}
                       />
                     </div>
                   </CardHeader>
@@ -749,8 +787,8 @@ function App() {
 
                     <Button
                       variant="outline"
-                      className="w-full border-slate-700"
-                      onClick={() => setSelectedStrategy(strategy)}
+                      className="w-full border-slate-700 hover:border-emerald-500"
+                      onClick={() => openStrategyConfig(strategy)}
                     >
                       <Settings className="w-4 h-4 mr-2" />
                       Configure Strategy
@@ -767,7 +805,7 @@ function App() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={tradingStrategies.map(s => ({ name: s.name, performance: s.performance, winRate: s.winRate }))}>
+                  <BarChart data={strategies.map(s => ({ name: s.name.split(' ')[0], performance: s.performance, winRate: s.winRate, active: s.active }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis dataKey="name" stroke="#64748b" />
                     <YAxis stroke="#64748b" />
@@ -1006,10 +1044,15 @@ function App() {
                     <Slider
                       value={[tradeAmount]}
                       onValueChange={(v) => setTradeAmount(v[0])}
+                      min={10}
                       max={1000}
-                      step={50}
+                      step={10}
                       className="w-full"
                     />
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>$10 min</span>
+                      <span>$1,000 max</span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1031,22 +1074,25 @@ function App() {
                   <CardDescription>Currently running strategies</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {tradingStrategies.filter(s => s.active).map((strategy) => (
-                    <div key={strategy.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
+                  {strategies.filter(s => s.active).map((strategy) => (
+                    <div key={strategy.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-emerald-500/20">
                       <div>
                         <p className="font-medium text-white">{strategy.name}</p>
-                        <p className="text-xs text-slate-400">{strategy.type}</p>
+                        <p className="text-xs text-slate-400">{strategy.type} · {strategy.timeFrame}</p>
                       </div>
                       <div className="text-right">
                         <p className={`text-sm font-medium ${strategy.performance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {strategy.performance >= 0 ? '+' : ''}{strategy.performance}%
                         </p>
-                        <p className="text-xs text-slate-400">{strategy.trades} trades</p>
+                        <p className="text-xs text-slate-400">{strategy.trades} trades · {strategy.winRate}% win</p>
                       </div>
                     </div>
                   ))}
-                  {tradingStrategies.filter(s => s.active).length === 0 && (
-                    <p className="text-center text-slate-500 py-4">No active strategies</p>
+                  {strategies.filter(s => s.active).length === 0 && (
+                    <div className="text-center py-6">
+                      <p className="text-slate-500 text-sm">No active strategies</p>
+                      <p className="text-slate-600 text-xs mt-1">Enable strategies in the Strategies tab</p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1116,42 +1162,75 @@ function App() {
       <Dialog open={!!selectedStrategy} onOpenChange={() => setSelectedStrategy(null)}>
         <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-lg">
           <DialogHeader>
-            <DialogTitle>Configure Strategy</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-emerald-400" />
+              Configure: {selectedStrategy?.name}
+            </DialogTitle>
             <DialogDescription className="text-slate-400">
               {selectedStrategy?.description}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Target Profit (%)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-300">Target Profit (%)</label>
+                <span className="text-xs text-emerald-400 font-mono">+{configEdit.minProfit}%</span>
+              </div>
               <input
                 type="number"
-                defaultValue={selectedStrategy?.minProfit}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                value={configEdit.minProfit}
+                step={0.05}
+                min={0.05}
+                max={20}
+                onChange={(e) => setConfigEdit(prev => ({ ...prev, minProfit: parseFloat(e.target.value) || 0 }))}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-emerald-500 outline-none transition-colors"
               />
+              <p className="text-xs text-slate-500">Bot will take profit when this % gain is reached</p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Stop Loss (%)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-300">Stop Loss (%)</label>
+                <span className="text-xs text-red-400 font-mono">-{configEdit.maxLoss}%</span>
+              </div>
               <input
                 type="number"
-                defaultValue={selectedStrategy?.maxLoss}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                value={configEdit.maxLoss}
+                step={0.05}
+                min={0.05}
+                max={10}
+                onChange={(e) => setConfigEdit(prev => ({ ...prev, maxLoss: parseFloat(e.target.value) || 0 }))}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-red-500 outline-none transition-colors"
               />
+              <p className="text-xs text-slate-500">Bot will cut losses when this % drop is reached</p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Max Position Size (USDT)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-300">Max Position Size (USDT)</label>
+                <span className="text-xs text-cyan-400 font-mono">${configEdit.positionSize}</span>
+              </div>
               <input
                 type="number"
-                defaultValue={100}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                value={configEdit.positionSize}
+                step={10}
+                min={10}
+                max={1000}
+                onChange={(e) => setConfigEdit(prev => ({ ...prev, positionSize: parseInt(e.target.value) || 10 }))}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 outline-none transition-colors"
               />
+              <p className="text-xs text-slate-500">Maximum amount per trade (min $10, max $1,000)</p>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between text-sm">
+              <span className="text-slate-400">Risk/Reward Ratio</span>
+              <span className="font-mono text-white">
+                1 : {configEdit.maxLoss > 0 ? (configEdit.minProfit / configEdit.maxLoss).toFixed(1) : '∞'}
+              </span>
             </div>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1 border-slate-700" onClick={() => setSelectedStrategy(null)}>
               Cancel
             </Button>
-            <Button className="flex-1 bg-emerald-500 hover:bg-emerald-600" onClick={() => setSelectedStrategy(null)}>
+            <Button className="flex-1 bg-emerald-500 hover:bg-emerald-600" onClick={saveStrategyConfig}>
               Save Changes
             </Button>
           </div>
