@@ -1,0 +1,211 @@
+/* Custom styles for CryptoTrading Pro */
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Animation for pulse effect */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Gradient text animation */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-text-animated {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Trading indicator animations */
+@keyframes price-up {
+  0% {
+    color: #10b981;
+  }
+  50% {
+    color: #34d399;
+  }
+  100% {
+    color: #10b981;
+  }
+}
+
+@keyframes price-down {
+  0% {
+    color: #ef4444;
+  }
+  50% {
+    color: #f87171;
+  }
+  100% {
+    color: #ef4444;
+  }
+}
+
+.price-up {
+  animation: price-up 1s ease-in-out;
+}
+
+.price-down {
+  animation: price-down 1s ease-in-out;
+}
+
+/* Bot status indicator */
+.bot-active {
+  position: relative;
+}
+
+.bot-active::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(45deg, #10b981, #06b6d4, #10b981);
+  background-size: 200% 200%;
+  animation: gradient-shift 2s ease infinite;
+  z-index: -1;
+  opacity: 0.5;
+}
+
+/* Table row hover */
+.tr-row:hover {
+  background-color: rgba(30, 41, 59, 0.5);
+}
+
+/* Progress bar custom styling */
+.progress-bar {
+  background: linear-gradient(90deg, #10b981 0%, #06b6d4 100%);
+}
+
+/* Badge glow effects */
+.badge-glow-green {
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.badge-glow-red {
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+/* Input focus states */
+input:focus, textarea:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+/* Button press effect */
+button:active {
+  transform: scale(0.98);
+}
+
+/* Chart tooltip styling */
+.recharts-tooltip-wrapper {
+  outline: none;
+}
+
+/* Tab transitions */
+[data-state="active"] {
+  transition: all 0.2s ease;
+}
+
+/* Dialog backdrop */
+[data-state="open"] {
+  animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Number counter animation */
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.count-animate {
+  animation: count-up 0.5s ease-out;
+}

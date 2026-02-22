@@ -1,0 +1,37 @@
+{
+  "name": "crypto-trading-bot-api",
+  "version": "1.0.0",
+  "description": "Backend API for CryptoTrading Pro - Automated Crypto Trading Bot",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts",
+    "watch": "nodemon --exec ts-node src/server.ts"
+  },
+  "keywords": [
+    "crypto",
+    "trading",
+    "bot",
+    "binance",
+    "bitcoin",
+    "ethereum"
+  ],
+  "author": "CryptoTrading Pro",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.15",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.8.10",
+    "@types/ws": "^8.5.8",
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
+}
