@@ -68,6 +68,7 @@ interface Strategy {
   type: 'scalping' | 'swing' | 'hodl';
   minProfit: number;
   maxLoss: number;
+  positionSize: number;
   timeFrame: string;
   active: boolean;
   performance: number;
@@ -192,6 +193,7 @@ const tradingStrategies: Strategy[] = [
     type: 'scalping',
     minProfit: 0.15,
     maxLoss: 0.08,
+    positionSize: 100,
     timeFrame: '1-5 minutes',
     active: true,
     performance: 12.4,
@@ -205,6 +207,7 @@ const tradingStrategies: Strategy[] = [
     type: 'swing',
     minProfit: 2.5,
     maxLoss: 1.2,
+    positionSize: 250,
     timeFrame: '2-7 days',
     active: true,
     performance: 18.7,
@@ -218,6 +221,7 @@ const tradingStrategies: Strategy[] = [
     type: 'swing',
     minProfit: 3.0,
     maxLoss: 1.5,
+    positionSize: 150,
     timeFrame: '4-12 hours',
     active: false,
     performance: 8.3,
@@ -231,6 +235,7 @@ const tradingStrategies: Strategy[] = [
     type: 'scalping',
     minProfit: 0.5,
     maxLoss: 0.25,
+    positionSize: 50,
     timeFrame: '5-15 minutes',
     active: false,
     performance: 6.2,
@@ -328,14 +333,15 @@ function App() {
 
   const openStrategyConfig = (strategy: Strategy) => {
     setSelectedStrategy(strategy);
-    setConfigEdit({ minProfit: strategy.minProfit, maxLoss: strategy.maxLoss, positionSize: 100 });
+    // Read saved values from the strategy, not hardcoded defaults
+    setConfigEdit({ minProfit: strategy.minProfit, maxLoss: strategy.maxLoss, positionSize: strategy.positionSize });
   };
 
   const saveStrategyConfig = () => {
     if (!selectedStrategy) return;
     setStrategies(prev => prev.map(s =>
       s.id === selectedStrategy.id
-        ? { ...s, minProfit: configEdit.minProfit, maxLoss: configEdit.maxLoss }
+        ? { ...s, minProfit: configEdit.minProfit, maxLoss: configEdit.maxLoss, positionSize: configEdit.positionSize }
         : s
     ));
     setSaveMessage(`✓ ${selectedStrategy.name} saved!`);
