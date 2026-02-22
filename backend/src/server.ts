@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import https from 'https';
 
 dotenv.config();
 
@@ -22,17 +23,53 @@ let totalProfit = 4200;
 let activeTrades: any[] = [];
 let tradeHistory: any[] = [];
 
-// Mock prices (in production, fetch from Binance)
+// Mock prices (falls back when Binance unreachable)
 const prices: Record<string, number> = {
   'BTCUSDT': 67908.63,
   'ETHUSDT': 1972.18,
   'BNBUSDT': 620.28,
   'SOLUSDT': 84.98,
+  'XRPUSDT': 0.5891,
   'ADAUSDT': 0.2759,
+  'AVAXUSDT': 9.01,
   'DOTUSDT': 1.344,
   'LINKUSDT': 8.82,
-  'AVAXUSDT': 9.01
+  'MATICUSDT': 0.198,
+  'INJUSDT': 14.21,
+  'ARBUSDT': 0.312,
+  'OPUSDT': 0.758,
+  'SUIUSDT': 2.14,
+  'APTUSDT': 5.83,
+  'SEIUSDT': 0.198,
+  'TIAUSDT': 3.21,
+  'BLURUSDT': 0.089,
+  'STRKUSDT': 0.312,
+  'JTOUSDT': 1.87
 };
+
+// Helper: fetch from Binance public API (no auth needed)
+function fetchFromBinance(path: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.binance.com',
+      path,
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      timeout: 5000
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.end();
+  });
+}
 
 // Active strategies
 const strategies = [
@@ -84,6 +121,45 @@ app.get('/api/ticker/24hr', (req, res) => {
     low24h: price * 0.98
   }));
   res.json(tickers);
+});
+
+// Binance live price proxy (public API — no key required)
+app.get('/api/binance/prices', async (req, res) => {
+  const symbols = Object.keys(prices);
+  try {
+    const symbolsParam = JSON.stringify(symbols);
+    const data: any[] = await fetchFromBinance(
+      `/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsParam)}`
+    );
+    const result = data
+      .filter((t: any) => symbols.includes(t.symbol))
+      .map((t: any) => ({
+        symbol: t.symbol,
+        price: parseFloat(t.lastPrice),
+        change24h: parseFloat(t.priceChange),
+        changePercent24h: parseFloat(t.priceChangePercent),
+        volume: parseFloat(t.volume),
+        high24h: parseFloat(t.highPrice),
+        low24h: parseFloat(t.lowPrice),
+        live: true
+      }));
+    // Update internal prices too
+    result.forEach((t: any) => { prices[t.symbol] = t.price; });
+    res.json({ live: true, data: result });
+  } catch (err) {
+    console.warn('[Binance proxy] Could not reach Binance, returning mock:', (err as Error).message);
+    const fallback = symbols.map(symbol => ({
+      symbol,
+      price: prices[symbol],
+      change24h: 0,
+      changePercent24h: 0,
+      volume: 0,
+      high24h: prices[symbol] * 1.02,
+      low24h: prices[symbol] * 0.98,
+      live: false
+    }));
+    res.json({ live: false, data: fallback });
+  }
 });
 
 app.post('/api/bot/start', (req, res) => {
@@ -169,7 +245,7 @@ app.get('/api/holdings/recommendations', (req, res) => {
 async function executeScalpingTrade(strategy: any) {
   const currentPrice = prices[strategy.symbol];
   const tradeAmount = strategy.amount / currentPrice;
-  
+
   // Simulate trade execution
   const trade: { id: string; symbol: string; type: string; amount: number; price: number; timestamp: Date; profit: number | null; status: string } = {
     id: Date.now().toString(),
@@ -181,10 +257,10 @@ async function executeScalpingTrade(strategy: any) {
     profit: null,
     status: 'open'
   };
-  
+
   activeTrades.push(trade);
   console.log(`[SCALPING] Bought ${tradeAmount} ${strategy.symbol} at $${currentPrice}`);
-  
+
   // Simulate closing trade after random time
   setTimeout(() => {
     const closePrice = currentPrice * (1 + (Math.random() * 0.003 - 0.001));
@@ -203,7 +279,7 @@ async function executeScalpingTrade(strategy: any) {
 async function executeSwingTrade(strategy: any) {
   const currentPrice = prices[strategy.symbol];
   const tradeAmount = strategy.amount / currentPrice;
-  
+
   const trade: { id: string; symbol: string; type: string; amount: number; price: number; timestamp: Date; profit: number | null; status: string } = {
     id: Date.now().toString(),
     symbol: strategy.symbol,
@@ -214,15 +290,15 @@ async function executeSwingTrade(strategy: any) {
     profit: null,
     status: 'open'
   };
-  
+
   activeTrades.push(trade);
   console.log(`[SWING] ${trade.type.toUpperCase()} ${tradeAmount} ${strategy.symbol} at $${currentPrice}`);
-  
+
   // Simulate closing after longer period
   setTimeout(() => {
     const profitPercent = (Math.random() - 0.3) * 0.05; // -1.5% to +3.5%
     const closePrice = currentPrice * (1 + profitPercent);
-    const profit = trade.type === 'buy' 
+    const profit = trade.type === 'buy'
       ? (closePrice - currentPrice) * tradeAmount
       : (currentPrice - closePrice) * tradeAmount;
     trade.status = 'closed';
@@ -263,7 +339,7 @@ setInterval(() => {
 // WebSocket for real-time updates
 wss.on('connection', (ws) => {
   console.log('Client connected');
-  
+
   const interval = setInterval(() => {
     if (ws.readyState === 1) {
       ws.send(JSON.stringify({
@@ -275,7 +351,7 @@ wss.on('connection', (ws) => {
       }));
     }
   }, 5000);
-  
+
   ws.on('close', () => {
     clearInterval(interval);
     console.log('Client disconnected');
