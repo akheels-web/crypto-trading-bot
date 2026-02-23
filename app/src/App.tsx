@@ -559,8 +559,28 @@ const holdingAssets: HoldingAsset[] = [
   }
 ];
 
+const VALID_TABS = ['dashboard', 'strategies', 'holdings', 'bot'];
+
+function getTabFromHash(): string {
+  const hash = window.location.hash.replace('#', '');
+  return VALID_TABS.includes(hash) ? hash : 'dashboard';
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(getTabFromHash);
+
+  // Keep URL hash in sync when tab changes
+  const switchTab = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = tab;
+  };
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onHashChange = () => setActiveTab(getTabFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
   const [botRunning, setBotRunning] = useState(false);
   const [strategies, setStrategies] = useState<Strategy[]>(tradingStrategies);
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
@@ -898,7 +918,7 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+        <Tabs value={activeTab} onValueChange={switchTab} className="space-y-8">
           <TabsList className={`grid grid-cols-4 gap-1 p-1 rounded-xl w-full ${darkMode ? 'bg-slate-900/80' : 'bg-slate-200'
             }`}>
             <TabsTrigger
