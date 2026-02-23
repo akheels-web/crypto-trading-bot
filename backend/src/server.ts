@@ -79,6 +79,16 @@ const prices: Record<string, number> = {
 app.use(cors());
 app.use(express.json());
 
+// Disable ETag caching on all API routes so the browser always fetches fresh data
+// (without this, Express returns 304 Not Modified when response body hasn't changed,
+//  causing the browser to display stale zeros for status/balance endpoints)
+app.disable('etag');
+app.use('/api', (_req: any, res: any, next: any) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+});
+
 // ─── Binance PUBLIC API helper (no auth needed) ─────────────────────────────
 function fetchFromBinance(apiPath: string): Promise<any> {
   return new Promise((resolve, reject) => {
