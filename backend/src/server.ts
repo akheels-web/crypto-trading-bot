@@ -23,6 +23,13 @@ let totalProfit = 4200;
 let activeTrades: any[] = [];
 let tradeHistory: any[] = [];
 
+// Bot Settings (saved in memory; persist to a file/DB in production)
+let botSettings = {
+  paperTrading: true,
+  notifications: false,
+  tradingPairs: 'BTCUSDT,ETHUSDT,SOLUSDT',
+};
+
 // Mock prices (falls back when Binance unreachable)
 const prices: Record<string, number> = {
   'BTCUSDT': 67908.63,
@@ -96,18 +103,39 @@ const strategies = [
 ];
 
 // Routes
-app.get('/api/status', (req, res) => {
+app.get('/api/status', (req: any, res: any) => {
+  const winningTrades = tradeHistory.filter(t => t.profit && t.profit > 0).length;
+  const winRate = tradeHistory.length > 0
+    ? Math.round((winningTrades / tradeHistory.length) * 100)
+    : 67; // initial display value
   res.json({
     botRunning,
     dailyProfit,
     totalProfit,
     activeTrades: activeTrades.length,
-    totalTrades: tradeHistory.length
+    activeTradesProfitable: activeTrades.filter(t => t.profit && t.profit > 0).length,
+    totalTrades: tradeHistory.length,
+    winRate,
+    paperTrading: botSettings.paperTrading,
   });
 });
 
-app.get('/api/prices', (req, res) => {
+app.get('/api/prices', (req: any, res: any) => {
   res.json(prices);
+});
+
+// Bot settings — GET and POST
+app.get('/api/bot/settings', (req: any, res: any) => {
+  res.json(botSettings);
+});
+
+app.post('/api/bot/settings', (req: any, res: any) => {
+  const { paperTrading, notifications, tradingPairs } = req.body;
+  if (typeof paperTrading === 'boolean') botSettings.paperTrading = paperTrading;
+  if (typeof notifications === 'boolean') botSettings.notifications = notifications;
+  if (typeof tradingPairs === 'string') botSettings.tradingPairs = tradingPairs;
+  console.log('[Settings] Updated:', botSettings);
+  res.json({ success: true, settings: botSettings });
 });
 
 app.get('/api/ticker/24hr', (req, res) => {
@@ -169,16 +197,28 @@ app.get('/api/binance/prices', async (req: any, res: any) => {
   }
 });
 
-
-app.post('/api/bot/start', (req, res) => {
-  botRunning = true;
-  console.log('Trading bot started');
-  res.json({ status: 'started', message: 'Trading bot is now active' });
+// Trade history endpoint
+app.get('/api/trades', (req: any, res: any) => {
+  res.json(tradeHistory);
 });
 
-app.post('/api/bot/stop', (req, res) => {
+app.post('/api/bot/start', async (req: any, res: any) => {
+  // Verify Binance connectivity first
+  try {
+    await fetchFromBinance('/api/v3/ping');
+    console.log('[Bot] Binance ping OK — starting bot');
+  } catch (e) {
+    console.warn('[Bot] Binance unreachable — starting in offline mode');
+  }
+  botRunning = true;
+  const mode = botSettings.paperTrading ? 'paper trading' : 'live trading';
+  console.log(`[Bot] Started in ${mode} mode`);
+  res.json({ status: 'started', message: `Trading bot is now active (${mode})`, paperTrading: botSettings.paperTrading });
+});
+
+app.post('/api/bot/stop', (req: any, res: any) => {
   botRunning = false;
-  console.log('Trading bot stopped');
+  console.log('[Bot] Stopped');
   res.json({ status: 'stopped', message: 'Trading bot has been stopped' });
 });
 

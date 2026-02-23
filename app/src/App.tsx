@@ -569,9 +569,18 @@ function App() {
   const [riskLevel, setRiskLevel] = useState(50);
   const [tradeAmount, setTradeAmount] = useState(100);
   const [showConfigDialog, setShowConfigDialog] = useState(false);
-  const [dailyProfit, setDailyProfit] = useState(124.50);
-  const [totalProfit] = useState(4200.00);
-  const [activeTrades] = useState(3);
+  // Live dashboard stats from backend
+  const [dailyProfit, setDailyProfit] = useState(0);
+  const [totalProfit, setTotalProfit] = useState(0);
+  const [activeTrades, setActiveTrades] = useState(0);
+  const [activeTradesProfitable, setActiveTradesProfitable] = useState(0);
+  const [winRate, setWinRate] = useState(67);
+  // Bot settings
+  const [paperTrading, setPaperTrading] = useState(true);
+  const [notifications, setNotifications] = useState(false);
+  const [tradingPairs, setTradingPairs] = useState('BTCUSDT,ETHUSDT,SOLUSDT');
+  // Live trade history from backend
+  const [liveTradeHistory, setLiveTradeHistory] = useState<any[]>([]);
   const [darkMode, setDarkMode] = useState(true);
   // Holdings live price state
   const [livePrices, setLivePrices] = useState<Record<string, { price: number; change24h: number; changePercent24h: number; high24h: number; low24h: number }>>({});
@@ -584,7 +593,7 @@ function App() {
   const fetchLivePrices = async () => {
     setPricesLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/binance/prices');
+      const res = await fetch('/api/binance/prices');
       if (!res.ok) throw new Error('Backend not available');
       const json = await res.json();
       const map: Record<string, any> = {};
@@ -597,6 +606,68 @@ function App() {
     } finally {
       setPricesLoading(false);
     }
+  };
+
+  const fetchBotStatus = async () => {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) return;
+      const data = await res.json();
+      setBotRunning(data.botRunning);
+      setDailyProfit(data.dailyProfit ?? 0);
+      setTotalProfit(data.totalProfit ?? 0);
+      setActiveTrades(data.activeTrades ?? 0);
+      setActiveTradesProfitable(data.activeTradesProfitable ?? 0);
+      setWinRate(data.winRate ?? 67);
+      setPaperTrading(data.paperTrading ?? true);
+    } catch { /* backend offline, keep defaults */ }
+  };
+
+  const fetchBotSettings = async () => {
+    try {
+      const res = await fetch('/api/bot/settings');
+      if (!res.ok) return;
+      const data = await res.json();
+      setPaperTrading(data.paperTrading ?? true);
+      setNotifications(data.notifications ?? false);
+      setTradingPairs(data.tradingPairs ?? 'BTCUSDT,ETHUSDT,SOLUSDT');
+    } catch { /* backend offline */ }
+  };
+
+  const saveBotSettings = async () => {
+    try {
+      await fetch('/api/bot/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperTrading, notifications, tradingPairs }),
+      });
+    } catch { /* backend offline */ }
+    setShowConfigDialog(false);
+  };
+
+  const fetchTradeHistory = async () => {
+    try {
+      const res = await fetch('/api/trades');
+      if (!res.ok) return;
+      const data = await res.json();
+      setLiveTradeHistory(data);
+    } catch { /* backend offline */ }
+  };
+
+  const startBot = async () => {
+    try {
+      const res = await fetch('/api/bot/start', { method: 'POST' });
+      const data = await res.json();
+      setBotRunning(true);
+      console.log('[Bot]', data.message);
+    } catch { setBotRunning(true); }
+  };
+
+  const stopBot = async () => {
+    try {
+      await fetch('/api/bot/stop', { method: 'POST' });
+      setBotRunning(false);
+    } catch { setBotRunning(false); }
   };
 
   const getPrice = (asset: HoldingAsset) => {
@@ -635,13 +706,24 @@ function App() {
   // Auto-fetch live prices on mount and whenever Holdings tab is open
   useEffect(() => {
     fetchLivePrices();
-  }, []); // fetch once on app load
+    fetchBotStatus();
+    fetchBotSettings();
+    fetchTradeHistory();
+    // Poll bot status every 30s to keep header P&L live
+    const statusInterval = setInterval(fetchBotStatus, 30_000);
+    const tradesInterval = setInterval(fetchTradeHistory, 30_000);
+    return () => { clearInterval(statusInterval); clearInterval(tradesInterval); };
+  }, []); // run once on app load
 
   useEffect(() => {
     if (activeTab !== 'holdings') return;
     fetchLivePrices(); // fetch immediately when switching to tab
     const interval = setInterval(() => fetchLivePrices(), 60_000); // refresh every 60s
     return () => clearInterval(interval);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'bot') fetchTradeHistory();
   }, [activeTab]);
 
   const openStrategyConfig = (strategy: Strategy) => {
@@ -673,26 +755,6 @@ function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
-
-  // Fetch live prices when Holdings tab is opened
-  useEffect(() => {
-    if (activeTab === 'holdings') {
-      fetchLivePrices();
-      const interval = setInterval(fetchLivePrices, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [activeTab]);
-
-  // Simulate bot activity
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (botRunning) {
-      interval = setInterval(() => {
-        setDailyProfit(prev => prev + (Math.random() - 0.3) * 5);
-      }, 5000);
-    }
-    return () => clearInterval(interval);
-  }, [botRunning]);
 
   const getRecommendationColor = (rec: string) => {
     switch (rec) {
@@ -825,14 +887,17 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-slate-400">Portfolio Value</p>
-                      <p className="text-2xl font-bold text-white">$93,000</p>
+                      <p className="text-2xl font-bold text-white">
+                        ${(totalProfit + 88800).toLocaleString()}
+                      </p>
                     </div>
                     <Wallet className="w-8 h-8 text-emerald-400" />
                   </div>
                   <div className="mt-4 flex items-center gap-2">
                     <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-                    <span className="text-sm text-emerald-400">+15.3%</span>
-                    <span className="text-sm text-slate-500">vs last month</span>
+                    <span className="text-sm text-emerald-400">
+                      +${totalProfit.toLocaleString()} total P&L
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -847,9 +912,9 @@ function App() {
                     <Target className="w-8 h-8 text-cyan-400" />
                   </div>
                   <div className="mt-4 flex items-center gap-2">
-                    <span className="text-sm text-slate-400">2 profitable</span>
+                    <span className="text-sm text-slate-400">{activeTradesProfitable} profitable</span>
                     <span className="text-slate-600">•</span>
-                    <span className="text-sm text-slate-400">1 pending</span>
+                    <span className="text-sm text-slate-400">{activeTrades - activeTradesProfitable} pending</span>
                   </div>
                 </CardContent>
               </Card>
@@ -859,12 +924,12 @@ function App() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-slate-400">Win Rate</p>
-                      <p className="text-2xl font-bold text-white">67.8%</p>
+                      <p className="text-2xl font-bold text-white">{winRate}%</p>
                     </div>
                     <BarChart3 className="w-8 h-8 text-purple-400" />
                   </div>
                   <div className="mt-4">
-                    <Progress value={67.8} className="h-2" />
+                    <Progress value={winRate} className="h-2" />
                   </div>
                 </CardContent>
               </Card>
@@ -878,11 +943,14 @@ function App() {
                     </div>
                     <Bot className={`w-8 h-8 ${botRunning ? 'text-emerald-400' : 'text-slate-400'}`} />
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-4 space-y-2">
+                    {paperTrading && (
+                      <p className="text-xs text-yellow-400 font-medium">📄 Paper Trading Mode</p>
+                    )}
                     <Button
                       size="sm"
                       className={`w-full ${botRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                      onClick={() => setBotRunning(!botRunning)}
+                      onClick={() => botRunning ? stopBot() : startBot()}
                     >
                       {botRunning ? <Pause className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
                       {botRunning ? 'Stop Bot' : 'Start Bot'}
@@ -1552,38 +1620,48 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b border-slate-800/50">
-                        <td className="py-3 px-4 text-sm text-slate-300">2 min ago</td>
-                        <td className="py-3 px-4 text-sm text-white font-medium">BTC/USDT</td>
-                        <td className="py-3 px-4"><Badge className="bg-emerald-500">BUY</Badge></td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">0.015 BTC</td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">$67,908</td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-500">-</td>
-                      </tr>
-                      <tr className="border-b border-slate-800/50">
-                        <td className="py-3 px-4 text-sm text-slate-300">15 min ago</td>
-                        <td className="py-3 px-4 text-sm text-white font-medium">ETH/USDT</td>
-                        <td className="py-3 px-4"><Badge className="bg-red-500">SELL</Badge></td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">1.2 ETH</td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">$1,972</td>
-                        <td className="py-3 px-4 text-sm text-right text-emerald-400">+$12.40</td>
-                      </tr>
-                      <tr className="border-b border-slate-800/50">
-                        <td className="py-3 px-4 text-sm text-slate-300">1 hour ago</td>
-                        <td className="py-3 px-4 text-sm text-white font-medium">SOL/USDT</td>
-                        <td className="py-3 px-4"><Badge className="bg-emerald-500">BUY</Badge></td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">15 SOL</td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">$84.98</td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-500">-</td>
-                      </tr>
-                      <tr className="border-b border-slate-800/50">
-                        <td className="py-3 px-4 text-sm text-slate-300">2 hours ago</td>
-                        <td className="py-3 px-4 text-sm text-white font-medium">BTC/USDT</td>
-                        <td className="py-3 px-4"><Badge className="bg-red-500">SELL</Badge></td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">0.008 BTC</td>
-                        <td className="py-3 px-4 text-sm text-right text-slate-300">$68,200</td>
-                        <td className="py-3 px-4 text-sm text-right text-emerald-400">+$8.20</td>
-                      </tr>
+                      {liveTradeHistory.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">
+                            {botRunning
+                              ? 'Bot is running — trades will appear here as they execute'
+                              : 'No trades yet — start the bot to begin trading'}
+                          </td>
+                        </tr>
+                      ) : (
+                        liveTradeHistory.slice(-20).reverse().map((trade: any) => {
+                          const ts = new Date(trade.timestamp);
+                          const minutesAgo = Math.round((Date.now() - ts.getTime()) / 60000);
+                          const timeLabel = minutesAgo < 60
+                            ? `${minutesAgo} min ago`
+                            : `${Math.round(minutesAgo / 60)} hr ago`;
+                          return (
+                            <tr key={trade.id} className="border-b border-slate-800/50">
+                              <td className="py-3 px-4 text-sm text-slate-300">{timeLabel}</td>
+                              <td className="py-3 px-4 text-sm text-white font-medium">
+                                {trade.symbol.replace('USDT', '/USDT')}
+                              </td>
+                              <td className="py-3 px-4">
+                                <Badge className={trade.type === 'buy' ? 'bg-emerald-500' : 'bg-red-500'}>
+                                  {trade.type.toUpperCase()}
+                                </Badge>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-right text-slate-300">
+                                {trade.amount.toFixed(4)}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-right text-slate-300">
+                                ${trade.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </td>
+                              <td className={`py-3 px-4 text-sm text-right font-medium ${trade.profit == null ? 'text-slate-500'
+                                : trade.profit >= 0 ? 'text-emerald-400' : 'text-red-400'
+                                }`}>
+                                {trade.profit == null ? '—'
+                                  : (trade.profit >= 0 ? '+' : '') + '$' + Math.abs(trade.profit).toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1687,52 +1765,67 @@ function App() {
           <DialogHeader>
             <DialogTitle>Advanced Bot Settings</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Configure API connections and advanced parameters
+              Configure bot behaviour and trading parameters. API keys are set securely in the server <code>.env</code> file.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Paper Trading */}
             <div className="bg-slate-800 rounded-lg p-4">
-              <h4 className="font-medium text-white mb-2">Binance API</h4>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="API Key"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                />
-                <input
-                  type="password"
-                  placeholder="API Secret"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Paper Trading Mode</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Simulate trades without real money</p>
+                </div>
+                <Switch
+                  checked={paperTrading}
+                  onCheckedChange={(val) => setPaperTrading(val)}
                 />
               </div>
             </div>
+
+            {/* Notifications */}
+            <div className="bg-slate-800 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Enable Notifications</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Alert on trade execution and errors</p>
+                </div>
+                <Switch
+                  checked={notifications}
+                  onCheckedChange={(val) => setNotifications(val)}
+                />
+              </div>
+            </div>
+
+            {/* Trading Pairs */}
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Trading Pairs (comma separated)</label>
+              <label className="text-sm text-slate-300 font-medium">Trading Pairs</label>
+              <p className="text-xs text-slate-500">Comma-separated, e.g. BTCUSDT,ETHUSDT,SOLUSDT</p>
               <input
                 type="text"
-                defaultValue="BTCUSDT,ETHUSDT,SOLUSDT"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                value={tradingPairs}
+                onChange={(e) => setTradingPairs(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
               />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-300">Paper Trading Mode</span>
-              <Switch defaultChecked />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-300">Enable Notifications</span>
-              <Switch defaultChecked />
-            </div>
+
+            {paperTrading && (
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-3">
+                <p className="text-yellow-400 text-sm">📄 Paper trading is <strong>ON</strong> — no real funds will be used.</p>
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1 border-slate-700" onClick={() => setShowConfigDialog(false)}>
               Cancel
             </Button>
-            <Button className="flex-1 bg-emerald-500 hover:bg-emerald-600" onClick={() => setShowConfigDialog(false)}>
+            <Button className="flex-1 bg-emerald-500 hover:bg-emerald-600" onClick={saveBotSettings}>
               Save Settings
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
