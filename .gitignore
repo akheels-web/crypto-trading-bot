@@ -29,3 +29,8 @@ Thumbs.db
 
 # CSV data files (optional - remove if you want these in git)
 *.csv
+
+# Runtime state files (persisted on server but not committed — server owns these)
+data/settings.json
+data/strategies.json
+data/trades.json

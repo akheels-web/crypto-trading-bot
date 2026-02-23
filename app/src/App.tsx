@@ -575,6 +575,9 @@ function App() {
   const [activeTrades, setActiveTrades] = useState(0);
   const [activeTradesProfitable, setActiveTradesProfitable] = useState(0);
   const [winRate, setWinRate] = useState(67);
+  // Portfolio balance from Binance account API
+  const [portfolioBalance, setPortfolioBalance] = useState(0);
+  const [portfolioConfigured, setPortfolioConfigured] = useState(false);
   // Bot settings
   const [paperTrading, setPaperTrading] = useState(true);
   const [notifications, setNotifications] = useState(false);
@@ -584,6 +587,8 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
   // Holdings live price state
   const [livePrices, setLivePrices] = useState<Record<string, { price: number; change24h: number; changePercent24h: number; high24h: number; low24h: number }>>({});
+  // Live market data for Dashboard table (merges cryptoAssets + real prices)
+  const [liveMarketData, setLiveMarketData] = useState<CryptoAsset[]>(cryptoAssets);
   const [pricesLive, setPricesLive] = useState(false);
   const [pricesLoading, setPricesLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -601,11 +606,42 @@ function App() {
       setLivePrices(map);
       setPricesLive(json.live === true);
       setLastRefreshed(new Date());
+      // Merge live prices into the Dashboard Market Analysis table
+      setLiveMarketData(cryptoAssets.map(asset => {
+        const live = map[asset.symbol];
+        if (!live) return asset;
+        return { ...asset, price: live.price, change24h: live.change24h, changePercent24h: live.changePercent24h, high24h: live.high24h, low24h: live.low24h };
+      }));
     } catch {
       setPricesLive(false);
     } finally {
       setPricesLoading(false);
     }
+  };
+
+  const fetchPortfolioBalance = async () => {
+    try {
+      const res = await fetch('/api/account/balance');
+      if (!res.ok) return;
+      const data = await res.json();
+      setPortfolioConfigured(data.configured === true);
+      if (data.configured && data.totalUSDT > 0) {
+        setPortfolioBalance(data.totalUSDT);
+      }
+    } catch { /* backend offline */ }
+  };
+
+  const fetchStrategies = async () => {
+    try {
+      const res = await fetch('/api/strategies');
+      if (!res.ok) return;
+      const data = await res.json();
+      // Merge backend active state into frontend strategies (keeps UI fields like performance, winRate)
+      setStrategies(prev => prev.map(s => {
+        const backend = data.find((b: any) => b.id === s.id);
+        return backend ? { ...s, active: backend.active, minProfit: backend.minProfit, maxLoss: backend.maxLoss, positionSize: backend.positionSize } : s;
+      }));
+    } catch { /* backend offline — keep default state */ }
   };
 
   const fetchBotStatus = async () => {
@@ -703,27 +739,30 @@ function App() {
     }
   };
 
-  // Auto-fetch live prices on mount and whenever Holdings tab is open
+  // Auto-fetch all live data on mount
   useEffect(() => {
-    fetchLivePrices();
-    fetchBotStatus();
-    fetchBotSettings();
-    fetchTradeHistory();
-    // Poll bot status every 30s to keep header P&L live
+    fetchLivePrices();       // prices for Holdings tab + Dashboard market table
+    fetchBotStatus();        // bot running state, P&L, win rate
+    fetchBotSettings();      // paper trading, notifications, trading pairs
+    fetchTradeHistory();     // trade history table
+    fetchPortfolioBalance(); // real Binance account balance (requires API keys)
+    fetchStrategies();       // strategy active/inactive state from disk
+    // Poll every 30s
     const statusInterval = setInterval(fetchBotStatus, 30_000);
     const tradesInterval = setInterval(fetchTradeHistory, 30_000);
-    return () => { clearInterval(statusInterval); clearInterval(tradesInterval); };
+    const pricesInterval = setInterval(fetchLivePrices, 60_000);   // refresh prices every 60s
+    const balanceInterval = setInterval(fetchPortfolioBalance, 120_000); // balance every 2 min
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(tradesInterval);
+      clearInterval(pricesInterval);
+      clearInterval(balanceInterval);
+    };
   }, []); // run once on app load
 
   useEffect(() => {
-    if (activeTab !== 'holdings') return;
-    fetchLivePrices(); // fetch immediately when switching to tab
-    const interval = setInterval(() => fetchLivePrices(), 60_000); // refresh every 60s
-    return () => clearInterval(interval);
-  }, [activeTab]);
-
-  useEffect(() => {
     if (activeTab === 'bot') fetchTradeHistory();
+    if (activeTab === 'strategies') fetchStrategies();
   }, [activeTab]);
 
   const openStrategyConfig = (strategy: Strategy) => {
@@ -745,10 +784,25 @@ function App() {
     setSelectedStrategy(null);
   };
 
-  const toggleStrategy = (id: string) => {
+  const toggleStrategy = async (id: string) => {
+    // Optimistic update in UI
+    const currentActive = strategies.find(s => s.id === id)?.active ?? false;
     setStrategies(prev => prev.map(s =>
       s.id === id ? { ...s, active: !s.active } : s
     ));
+    // Persist to backend (saves to data/strategies.json on server)
+    try {
+      await fetch(`/api/strategies/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !currentActive }),
+      });
+    } catch {
+      // If backend fails, revert optimistic update
+      setStrategies(prev => prev.map(s =>
+        s.id === id ? { ...s, active: currentActive } : s
+      ));
+    }
   };
 
   // Apply dark class to <html> so shadcn CSS variables work correctly
@@ -888,16 +942,27 @@ function App() {
                     <div>
                       <p className="text-sm text-slate-400">Portfolio Value</p>
                       <p className="text-2xl font-bold text-white">
-                        ${(totalProfit + 88800).toLocaleString()}
+                        {portfolioConfigured && portfolioBalance > 0
+                          ? `$${portfolioBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                          : `$${(totalProfit + 88800).toLocaleString()}`}
                       </p>
                     </div>
                     <Wallet className="w-8 h-8 text-emerald-400" />
                   </div>
                   <div className="mt-4 flex items-center gap-2">
-                    <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-                    <span className="text-sm text-emerald-400">
-                      +${totalProfit.toLocaleString()} total P&L
-                    </span>
+                    {portfolioConfigured && portfolioBalance > 0 ? (
+                      <>
+                        <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+                        <span className="text-sm text-emerald-400">Live Binance balance</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowUpRight className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm text-slate-500">
+                          Add API keys to see real balance
+                        </span>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1064,7 +1129,7 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {cryptoAssets.map((asset) => (
+                      {liveMarketData.map((asset) => (
                         <tr key={asset.symbol} className="border-b border-slate-800/50 hover:bg-slate-800/30">
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-3">
