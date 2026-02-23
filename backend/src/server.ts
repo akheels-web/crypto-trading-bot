@@ -124,31 +124,38 @@ app.get('/api/ticker/24hr', (req, res) => {
 });
 
 // Binance live price proxy (public API — no key required)
-app.get('/api/binance/prices', async (req, res) => {
+app.get('/api/binance/prices', async (req: any, res: any) => {
   const symbols = Object.keys(prices);
   try {
-    const symbolsParam = JSON.stringify(symbols);
-    const data: any[] = await fetchFromBinance(
-      `/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsParam)}`
-    );
-    const result = data
-      .filter((t: any) => symbols.includes(t.symbol))
-      .map((t: any) => ({
-        symbol: t.symbol,
-        price: parseFloat(t.lastPrice),
-        change24h: parseFloat(t.priceChange),
-        changePercent24h: parseFloat(t.priceChangePercent),
-        volume: parseFloat(t.volume),
-        high24h: parseFloat(t.highPrice),
-        low24h: parseFloat(t.lowPrice),
-        live: true
-      }));
-    // Update internal prices too
+    // Use the symbols array format which is more reliable than URL-encoding a JSON array
+    const symbolsJson = JSON.stringify(symbols);
+    const path = `/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbolsJson)}`;
+    const data: any[] = await fetchFromBinance(path);
+
+    if (!Array.isArray(data)) {
+      throw new Error(`Unexpected Binance response: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+
+    const result = data.map((t: any) => ({
+      symbol: t.symbol,
+      price: parseFloat(t.lastPrice),
+      change24h: parseFloat(t.priceChange),
+      changePercent24h: parseFloat(t.priceChangePercent),
+      volume: parseFloat(t.volume),
+      high24h: parseFloat(t.highPrice),
+      low24h: parseFloat(t.lowPrice),
+      live: true
+    }));
+
+    // Update internal prices cache
     result.forEach((t: any) => { prices[t.symbol] = t.price; });
+
+    console.log(`[Binance] ✅ Live prices fetched for ${result.length} symbols`);
     res.json({ live: true, data: result });
   } catch (err) {
-    console.warn('[Binance proxy] Could not reach Binance, returning mock:', (err as Error).message);
-    const fallback = symbols.map(symbol => ({
+    const msg = (err as Error).message;
+    console.warn(`[Binance] ⚠️  Falling back to mock prices — reason: ${msg}`);
+    const fallback = Object.keys(prices).map(symbol => ({
       symbol,
       price: prices[symbol],
       change24h: 0,
@@ -161,6 +168,7 @@ app.get('/api/binance/prices', async (req, res) => {
     res.json({ live: false, data: fallback });
   }
 });
+
 
 app.post('/api/bot/start', (req, res) => {
   botRunning = true;

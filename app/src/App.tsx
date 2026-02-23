@@ -632,7 +632,20 @@ function App() {
     }
   };
 
+  // Auto-fetch live prices on mount and whenever Holdings tab is open
+  useEffect(() => {
+    fetchLivePrices();
+  }, []); // fetch once on app load
+
+  useEffect(() => {
+    if (activeTab !== 'holdings') return;
+    fetchLivePrices(); // fetch immediately when switching to tab
+    const interval = setInterval(() => fetchLivePrices(), 60_000); // refresh every 60s
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
   const openStrategyConfig = (strategy: Strategy) => {
+
     setSelectedStrategy(strategy);
     // Read saved values from the strategy, not hardcoded defaults
     setConfigEdit({ minProfit: strategy.minProfit, maxLoss: strategy.maxLoss, positionSize: strategy.positionSize });
