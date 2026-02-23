@@ -772,17 +772,28 @@ function App() {
     setConfigEdit({ minProfit: strategy.minProfit, maxLoss: strategy.maxLoss, positionSize: strategy.positionSize });
   };
 
-  const saveStrategyConfig = () => {
+  const saveStrategyConfig = async () => {
     if (!selectedStrategy) return;
+    const updated = { ...configEdit };
+    // Update local state immediately
     setStrategies(prev => prev.map(s =>
       s.id === selectedStrategy.id
-        ? { ...s, minProfit: configEdit.minProfit, maxLoss: configEdit.maxLoss, positionSize: configEdit.positionSize }
+        ? { ...s, minProfit: updated.minProfit, maxLoss: updated.maxLoss, positionSize: updated.positionSize }
         : s
     ));
+    // Persist to backend → saved to data/strategies.json
+    try {
+      await fetch(`/api/strategies/${selectedStrategy.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minProfit: updated.minProfit, maxLoss: updated.maxLoss, positionSize: updated.positionSize }),
+      });
+    } catch { /* backend offline – local update still applied */ }
     setSaveMessage(`✓ ${selectedStrategy.name} saved!`);
     setTimeout(() => setSaveMessage(''), 3000);
     setSelectedStrategy(null);
   };
+
 
   const toggleStrategy = async (id: string) => {
     // Optimistic update in UI

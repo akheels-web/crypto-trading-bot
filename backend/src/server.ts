@@ -53,18 +53,29 @@ const DEFAULT_SETTINGS = {
   paperTrading: true,
   notifications: false,
   tradingPairs: 'BTCUSDT,ETHUSDT,SOLUSDT',
+  botRunning: false,   // ← persisted so bot state survives server restart
 };
+
 
 // ─── Load persisted state from disk ────────────────────────────────────────
 let strategies: any[] = readJson('strategies.json', DEFAULT_STRATEGIES);
 let botSettings = readJson('settings.json', DEFAULT_SETTINGS);
 
-// ─── Trading state (runtime — not persisted) ────────────────────────────────
-let botRunning = false;
+// ─── Trading state ─────────────────────────────────────────────────────────
+let botRunning: boolean = botSettings.botRunning ?? false;  // ← loaded from disk
 let dailyProfit = 0;
 let totalProfit = 0;
 let activeTrades: any[] = [];
 let tradeHistory: any[] = [];
+
+// ─── Global error handlers — prevent PM2 from crashing on unhandled errors ──
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled promise rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught exception:', err.message);
+});
+
 
 // ─── Mock price cache (updated from Binance) ────────────────────────────────
 const prices: Record<string, number> = {
@@ -331,6 +342,8 @@ app.post('/api/bot/start', async (req: any, res: any) => {
     console.warn('[Bot] Binance unreachable — starting in offline mode');
   }
   botRunning = true;
+  botSettings.botRunning = true;
+  writeJson('settings.json', botSettings);  // ← persist bot state
   const mode = botSettings.paperTrading ? 'paper trading' : 'live trading';
   console.log(`[Bot] Started in ${mode} mode`);
   res.json({ status: 'started', message: `Trading bot is now active (${mode})`, paperTrading: botSettings.paperTrading });
@@ -338,9 +351,12 @@ app.post('/api/bot/start', async (req: any, res: any) => {
 
 app.post('/api/bot/stop', (req: any, res: any) => {
   botRunning = false;
+  botSettings.botRunning = false;
+  writeJson('settings.json', botSettings);  // ← persist bot state
   console.log('[Bot] Stopped');
   res.json({ status: 'stopped', message: 'Trading bot has been stopped' });
 });
+
 
 // ── Holdings recommendations ────────────────────────────────────
 app.get('/api/holdings/recommendations', (req: any, res: any) => {
