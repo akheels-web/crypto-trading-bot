@@ -714,17 +714,20 @@ function App() {
     try {
       const res = await fetch('/api/bot/start', { method: 'POST' });
       const data = await res.json();
-      setBotRunning(true);
       console.log('[Bot]', data.message);
-    } catch { setBotRunning(true); }
+    } catch { /* backend offline */ }
+    // Always re-sync from backend truth immediately
+    await fetchBotStatus();
   };
 
   const stopBot = async () => {
     try {
       await fetch('/api/bot/stop', { method: 'POST' });
-      setBotRunning(false);
-    } catch { setBotRunning(false); }
+    } catch { /* backend offline */ }
+    // Always re-sync from backend truth immediately
+    await fetchBotStatus();
   };
+
 
   const getPrice = (asset: HoldingAsset) => {
     const live = livePrices[asset.symbol];

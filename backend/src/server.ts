@@ -335,19 +335,19 @@ app.get('/api/trades', (req: any, res: any) => {
 
 // ── Bot Start/Stop ──────────────────────────────────────────────
 app.post('/api/bot/start', async (req: any, res: any) => {
-  try {
-    await fetchFromBinance('/api/v3/ping');
-    console.log('[Bot] Binance ping OK — starting bot');
-  } catch (e) {
-    console.warn('[Bot] Binance unreachable — starting in offline mode');
-  }
+  // ← Set botRunning FIRST so any concurrent /api/status poll sees the correct value
   botRunning = true;
   botSettings.botRunning = true;
-  writeJson('settings.json', botSettings);  // ← persist bot state
+  writeJson('settings.json', botSettings);
   const mode = botSettings.paperTrading ? 'paper trading' : 'live trading';
   console.log(`[Bot] Started in ${mode} mode`);
+  // Optional connectivity check (non-blocking — doesn't gate the start)
+  fetchFromBinance('/api/v3/ping')
+    .then(() => console.log('[Bot] Binance ping OK'))
+    .catch(() => console.warn('[Bot] Binance unreachable — running in offline mode'));
   res.json({ status: 'started', message: `Trading bot is now active (${mode})`, paperTrading: botSettings.paperTrading });
 });
+
 
 app.post('/api/bot/stop', (req: any, res: any) => {
   botRunning = false;
