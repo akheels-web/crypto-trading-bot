@@ -1599,7 +1599,12 @@ function App() {
                 </Button>
                 <Button
                   className={`${botRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                  onClick={() => setBotRunning(!botRunning)}
+                  onClick={() => {
+                    if (botRunning) stopBot();
+                    else startBot();
+                    // Optimistic UI update while fetch completes
+                    setBotRunning(!botRunning);
+                  }}
                 >
                   {botRunning ? <Pause className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
                   {botRunning ? 'Stop Bot' : 'Start Bot'}
