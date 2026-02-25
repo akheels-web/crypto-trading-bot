@@ -465,7 +465,8 @@ app.get('/health', (req: any, res: any) => {
 // ═══════════════════════════════════════════════════════════════
 
 function formatQuantity(symbol: string, amount: number): string {
-  if (symbol.startsWith('BTC') || symbol.startsWith('ETH')) return (Math.floor(amount * 10000) / 10000).toFixed(4);
+  if (symbol.startsWith('BTC')) return (Math.floor(amount * 100000) / 100000).toFixed(5);
+  if (symbol.startsWith('ETH')) return (Math.floor(amount * 10000) / 10000).toFixed(4);
   if (symbol.startsWith('BNB') || symbol.startsWith('SOL')) return (Math.floor(amount * 100) / 100).toFixed(2);
   return (Math.floor(amount * 10) / 10).toFixed(1);
 }
