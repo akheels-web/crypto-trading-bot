@@ -505,33 +505,56 @@ async function executeScalpingTrade(strategy: any) {
   activeTrades.push(trade);
   console.log(`[SCALPING] Bought ${tradeAmount} ${strategy.symbol} at $${currentPrice}`);
 
-  setTimeout(async () => {
-    if (!botSettings.paperTrading) {
-      try {
-        console.log(`[Binance Live] Attempting SELL ${tradeQuantityStr} ${strategy.symbol}...`);
-        const order = await postToBinanceSigned('/api/v3/order', {
-          symbol: strategy.symbol,
-          side: 'SELL',
-          type: 'MARKET',
-          quantity: tradeQuantityStr
-        });
-        console.log(`[Binance Live] SELL Order Success: ${order.orderId}`);
-      } catch (error: any) {
-        console.error(`[Binance Live] SELL Order Failed for ${strategy.symbol}: ${error.message} - NOTE: Attempting simulation close anyway to clear local state.`);
+  const BINANCE_FEE_RATE = 0.001; // 0.1% per transaction
+  const buyCost = tradeAmount * currentPrice;
+  const buyFee = buyCost * BINANCE_FEE_RATE;
+
+  // Let's hold the simulation loop until we actually hit profit after fees
+  const checkInterval = setInterval(async () => {
+    const latestPrice = prices[strategy.symbol] || currentPrice;
+
+    // Simulate slight random movement if price hasn't updated
+    const closePrice = latestPrice * (1 + (Math.random() * 0.004 - 0.002));
+
+    const grossRevenue = closePrice * tradeAmount;
+    const sellFee = grossRevenue * BINANCE_FEE_RATE;
+    const netProfit = (grossRevenue - sellFee) - (buyCost + buyFee);
+
+    // Target minProfit is user configured (e.g. 0.1% to 1%). 
+    // We convert it to a target dollar amount based on investment.
+    const targetProfitUsd = buyCost * (strategy.minProfit / 100);
+    const stopLossUsd = -1 * (buyCost * (strategy.maxLoss / 100));
+
+    // Only close if we hit target profit after fees OR hit stop loss
+    if (netProfit >= targetProfitUsd || netProfit <= stopLossUsd) {
+      clearInterval(checkInterval);
+
+      if (!botSettings.paperTrading) {
+        try {
+          console.log(`[Binance Live] Attempting SELL ${tradeQuantityStr} ${strategy.symbol}...`);
+          const order = await postToBinanceSigned('/api/v3/order', {
+            symbol: strategy.symbol,
+            side: 'SELL',
+            type: 'MARKET',
+            quantity: tradeQuantityStr
+          });
+          console.log(`[Binance Live] SELL Order Success: ${order.orderId}`);
+        } catch (error: any) {
+          console.error(`[Binance Live] SELL Order Failed for ${strategy.symbol}: ${error.message} - NOTE: Attempting simulation close anyway to clear local state.`);
+        }
       }
+
+      trade.status = 'closed';
+      trade.profit = netProfit;
+      trade.exitPrice = closePrice;
+
+      dailyProfit += netProfit; totalProfit += netProfit;
+      tradeHistory.push({ ...trade });
+      activeTrades = activeTrades.filter(t => t.id !== trade.id);
+      console.log(`[SCALPING] Sold ${strategy.symbol} at $${closePrice.toFixed(2)}, Net Profit: $${netProfit.toFixed(2)} (Fees paid: $${(buyFee + sellFee).toFixed(2)})`);
     }
+  }, 5000); // check every 5 seconds instead of blind timeout
 
-    const closePrice = currentPrice * (1 + (Math.random() * 0.003 - 0.001)); // Slight random fluctuation
-    const profit = (closePrice - currentPrice) * tradeAmount;
-    trade.status = 'closed';
-    trade.profit = profit;
-    trade.exitPrice = closePrice;
-
-    dailyProfit += profit; totalProfit += profit;
-    tradeHistory.push({ ...trade });
-    activeTrades = activeTrades.filter(t => t.id !== trade.id);
-    console.log(`[SCALPING] Sold ${strategy.symbol} at $${closePrice.toFixed(2)}, Profit: $${profit.toFixed(2)}`);
-  }, 30000 + Math.random() * 60000);
 }
 
 async function executeSwingTrade(strategy: any) {
@@ -572,6 +595,10 @@ async function executeSwingTrade(strategy: any) {
   activeTrades.push(trade);
   console.log(`[SWING] ${tradeType.toUpperCase()} ${tradeAmount} ${strategy.symbol} at $${currentPrice}`);
 
+  const BINANCE_FEE_RATE = 0.001;
+  const buyCost = tradeAmount * currentPrice;
+  const entryFee = buyCost * BINANCE_FEE_RATE;
+
   setTimeout(async () => {
     const closeSide = tradeType === 'buy' ? 'SELL' : 'BUY';
     if (!botSettings.paperTrading) {
@@ -591,18 +618,24 @@ async function executeSwingTrade(strategy: any) {
 
     const profitPercent = (Math.random() - 0.3) * 0.05;
     const closePrice = currentPrice * (1 + profitPercent);
-    const profit = tradeType === 'buy'
+    const grossRevenue = closePrice * tradeAmount;
+    const exitFee = grossRevenue * BINANCE_FEE_RATE;
+
+    const grossProfit = tradeType === 'buy'
       ? (closePrice - currentPrice) * tradeAmount
       : (currentPrice - closePrice) * tradeAmount;
 
+    // Net profit accounts for entry and exit fees
+    const netProfit = grossProfit - (entryFee + exitFee);
+
     trade.status = 'closed';
-    trade.profit = profit;
+    trade.profit = netProfit;
     trade.exitPrice = closePrice;
 
-    dailyProfit += profit; totalProfit += profit;
+    dailyProfit += netProfit; totalProfit += netProfit;
     tradeHistory.push({ ...trade });
     activeTrades = activeTrades.filter(t => t.id !== trade.id);
-    console.log(`[SWING] Closed ${strategy.symbol} at $${closePrice.toFixed(2)}, Profit: $${profit.toFixed(2)}`);
+    console.log(`[SWING] Closed ${strategy.symbol} at $${closePrice.toFixed(2)}, Net Profit: $${netProfit.toFixed(2)} (Fees paid: $${(entryFee + exitFee).toFixed(2)})`);
   }, 300000 + Math.random() * 600000);
 }
 
