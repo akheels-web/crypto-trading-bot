@@ -67,6 +67,8 @@ let dailyProfit = 0;
 let totalProfit = 0;
 let activeTrades: any[] = [];
 let tradeHistory: any[] = [];
+const COOLDOWN_MS = 60000; // 1 minute cooldown after a failed trade attempt
+const strategyCooldowns: Record<string, number> = {};
 
 // ─── Global error handlers — prevent PM2 from crashing on unhandled errors ──
 process.on('unhandledRejection', (reason) => {
@@ -498,6 +500,8 @@ async function executeScalpingTrade(strategy: any) {
       console.log(`[Binance Live] BUY Order Success: ${order.orderId}`);
     } catch (error: any) {
       console.error(`[Binance Live] BUY Order Failed for ${strategy.symbol}: ${error.message}`);
+      // Cooldown for 1 minute before trying again
+      strategyCooldowns[strategy.id] = Date.now() + 60000;
       return; // Abort trade simulation if real order fails (e.g. MIN_NOTIONAL error)
     }
   }
@@ -646,7 +650,9 @@ setInterval(async () => {
     try {
       // Prevent bot from opening multiple concurrent trades for the same strategy
       const isAlreadyTrading = activeTrades.some(t => t.strategyId === strategy.id);
-      if (isAlreadyTrading) continue;
+      const isCoolingDown = strategyCooldowns[strategy.id] && Date.now() < strategyCooldowns[strategy.id];
+
+      if (isAlreadyTrading || isCoolingDown) continue;
 
       if (strategy.type === 'scalping' && Math.random() > 0.7) await executeScalpingTrade(strategy);
       else if (strategy.type === 'swing' && Math.random() > 0.9) await executeSwingTrade(strategy);
