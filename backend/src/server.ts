@@ -164,6 +164,52 @@ function fetchFromBinanceSigned(apiPath: string, queryParams: Record<string, str
   });
 }
 
+function postToBinanceSigned(apiPath: string, queryParams: Record<string, string | number> = {}): Promise<any> {
+  const apiKey = process.env.BINANCE_API_KEY;
+  const apiSecret = process.env.BINANCE_API_SECRET;
+
+  if (!apiKey || !apiSecret || apiKey === 'your_api_key_here' || apiSecret === 'your_api_secret_here') {
+    return Promise.reject(new Error('KEYS_NOT_CONFIGURED'));
+  }
+
+  const timestamp = Date.now().toString();
+  const params = { ...queryParams, timestamp };
+  const queryString = Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&');
+  const signature = crypto.createHmac('sha256', apiSecret).update(queryString).digest('hex');
+  const fullQuery = `${queryString}&signature=${signature}`;
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.binance.com',
+      path: `${apiPath}?${fullQuery}`,
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-MBX-APIKEY': apiKey
+      },
+      timeout: 8000
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`Binance API Error: ${json.msg || JSON.stringify(json)}`));
+          } else {
+            resolve(json);
+          }
+        }
+        catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.end();
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  API ROUTES
 // ═══════════════════════════════════════════════════════════════
@@ -408,9 +454,18 @@ app.get('/health', (req: any, res: any) => {
 //  TRADING ENGINE
 // ═══════════════════════════════════════════════════════════════
 
+function formatQuantity(symbol: string, amount: number): string {
+  if (symbol.startsWith('BTC') || symbol.startsWith('ETH')) return (Math.floor(amount * 10000) / 10000).toFixed(4);
+  if (symbol.startsWith('BNB') || symbol.startsWith('SOL')) return (Math.floor(amount * 100) / 100).toFixed(2);
+  return (Math.floor(amount * 10) / 10).toFixed(1);
+}
+
 async function executeScalpingTrade(strategy: any) {
   const currentPrice = prices[strategy.symbol] || 1;
-  const tradeAmount = strategy.amount / currentPrice;
+  const rawAmount = strategy.amount / currentPrice;
+  const tradeQuantityStr = formatQuantity(strategy.symbol, rawAmount);
+  const tradeAmount = parseFloat(tradeQuantityStr);
+
   const trade: any = {
     id: Date.now().toString(),
     strategyId: strategy.id,
@@ -422,9 +477,42 @@ async function executeScalpingTrade(strategy: any) {
     profit: null,
     status: 'open'
   };
+
+  if (!botSettings.paperTrading) {
+    try {
+      console.log(`[Binance Live] Attempting BUY ${tradeQuantityStr} ${strategy.symbol}...`);
+      const order = await postToBinanceSigned('/api/v3/order', {
+        symbol: strategy.symbol,
+        side: 'BUY',
+        type: 'MARKET',
+        quantity: tradeQuantityStr
+      });
+      console.log(`[Binance Live] BUY Order Success: ${order.orderId}`);
+    } catch (error: any) {
+      console.error(`[Binance Live] BUY Order Failed for ${strategy.symbol}: ${error.message}`);
+      return; // Abort trade simulation if real order fails (e.g. MIN_NOTIONAL error)
+    }
+  }
+
   activeTrades.push(trade);
-  console.log(`[SCALPING] Bought ${tradeAmount.toFixed(6)} ${strategy.symbol} at $${currentPrice}`);
-  setTimeout(() => {
+  console.log(`[SCALPING] Bought ${tradeAmount} ${strategy.symbol} at $${currentPrice}`);
+
+  setTimeout(async () => {
+    if (!botSettings.paperTrading) {
+      try {
+        console.log(`[Binance Live] Attempting SELL ${tradeQuantityStr} ${strategy.symbol}...`);
+        const order = await postToBinanceSigned('/api/v3/order', {
+          symbol: strategy.symbol,
+          side: 'SELL',
+          type: 'MARKET',
+          quantity: tradeQuantityStr
+        });
+        console.log(`[Binance Live] SELL Order Success: ${order.orderId}`);
+      } catch (error: any) {
+        console.error(`[Binance Live] SELL Order Failed for ${strategy.symbol}: ${error.message} - NOTE: Attempting simulation close anyway to clear local state.`);
+      }
+    }
+
     const closePrice = currentPrice * (1 + (Math.random() * 0.003 - 0.001)); // Slight random fluctuation
     const profit = (closePrice - currentPrice) * tradeAmount;
     trade.status = 'closed';
@@ -440,25 +528,62 @@ async function executeScalpingTrade(strategy: any) {
 
 async function executeSwingTrade(strategy: any) {
   const currentPrice = prices[strategy.symbol] || 1;
-  const tradeAmount = strategy.amount / currentPrice;
+  const rawAmount = strategy.amount / currentPrice;
+  const tradeQuantityStr = formatQuantity(strategy.symbol, rawAmount);
+  const tradeAmount = parseFloat(tradeQuantityStr);
+  const tradeType = Math.random() > 0.5 ? 'buy' : 'sell';
+
   const trade: any = {
     id: Date.now().toString(),
     strategyId: strategy.id,
     symbol: strategy.symbol,
-    type: Math.random() > 0.5 ? 'buy' : 'sell',
+    type: tradeType,
     amount: tradeAmount,
     price: currentPrice,
     timestamp: new Date(),
     profit: null,
     status: 'open'
   };
+
+  if (!botSettings.paperTrading) {
+    try {
+      console.log(`[Binance Live] Attempting ${tradeType.toUpperCase()} ${tradeQuantityStr} ${strategy.symbol}...`);
+      const order = await postToBinanceSigned('/api/v3/order', {
+        symbol: strategy.symbol,
+        side: tradeType.toUpperCase(),
+        type: 'MARKET',
+        quantity: tradeQuantityStr
+      });
+      console.log(`[Binance Live] ${tradeType.toUpperCase()} Order Success: ${order.orderId}`);
+    } catch (error: any) {
+      console.error(`[Binance Live] ${tradeType.toUpperCase()} Order Failed for ${strategy.symbol}: ${error.message}`);
+      return; // Abort
+    }
+  }
+
   activeTrades.push(trade);
-  console.log(`[SWING] ${trade.type.toUpperCase()} ${tradeAmount.toFixed(6)} ${strategy.symbol} at $${currentPrice}`);
-  setTimeout(() => {
-    // Determine realistic swing trade exit
+  console.log(`[SWING] ${tradeType.toUpperCase()} ${tradeAmount} ${strategy.symbol} at $${currentPrice}`);
+
+  setTimeout(async () => {
+    const closeSide = tradeType === 'buy' ? 'SELL' : 'BUY';
+    if (!botSettings.paperTrading) {
+      try {
+        console.log(`[Binance Live] Attempting ${closeSide} ${tradeQuantityStr} ${strategy.symbol}...`);
+        const order = await postToBinanceSigned('/api/v3/order', {
+          symbol: strategy.symbol,
+          side: closeSide,
+          type: 'MARKET',
+          quantity: tradeQuantityStr
+        });
+        console.log(`[Binance Live] ${closeSide} Order Success: ${order.orderId}`);
+      } catch (error: any) {
+        console.error(`[Binance Live] ${closeSide} Order Failed for ${strategy.symbol}: ${error.message}`);
+      }
+    }
+
     const profitPercent = (Math.random() - 0.3) * 0.05;
     const closePrice = currentPrice * (1 + profitPercent);
-    const profit = trade.type === 'buy'
+    const profit = tradeType === 'buy'
       ? (closePrice - currentPrice) * tradeAmount
       : (currentPrice - closePrice) * tradeAmount;
 
