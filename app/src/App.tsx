@@ -584,7 +584,7 @@ function App() {
   const [botRunning, setBotRunning] = useState(false);
   const [strategies, setStrategies] = useState<Strategy[]>(tradingStrategies);
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
-  const [configEdit, setConfigEdit] = useState({ minProfit: 0, maxLoss: 0, positionSize: 100 });
+  const [configEdit, setConfigEdit] = useState<any>({ minProfit: 0, maxLoss: 0, positionSize: 100 });
   const [saveMessage, setSaveMessage] = useState('');
   const [riskLevel, setRiskLevel] = useState(50);
   const [tradeAmount, setTradeAmount] = useState(100);
@@ -1826,8 +1826,8 @@ function App() {
                 min={0.05}
                 max={20}
                 onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  if (!isNaN(val)) setConfigEdit(c => ({ ...c, minProfit: val }));
+                  const val = e.target.value;
+                  setConfigEdit((c: any) => ({ ...c, minProfit: val === '' ? '' : Number(val) }));
                 }}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-emerald-500 outline-none transition-colors"
               />
@@ -1845,8 +1845,8 @@ function App() {
                 min={0.05}
                 max={10}
                 onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  if (!isNaN(val)) setConfigEdit(c => ({ ...c, maxLoss: val }));
+                  const val = e.target.value;
+                  setConfigEdit((c: any) => ({ ...c, maxLoss: val === '' ? '' : Number(val) }));
                 }}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-red-500 outline-none transition-colors"
               />
@@ -1864,8 +1864,8 @@ function App() {
                 min={10}
                 max={1000}
                 onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (!isNaN(val)) setConfigEdit(c => ({ ...c, positionSize: val }));
+                  const val = e.target.value;
+                  setConfigEdit((c: any) => ({ ...c, positionSize: val === '' ? '' : Number(val) }));
                 }}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-cyan-500 outline-none transition-colors"
               />
