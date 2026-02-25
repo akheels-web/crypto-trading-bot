@@ -668,8 +668,8 @@ setInterval(async () => {
 
       if (isAlreadyTrading || isCoolingDown) continue;
 
-      if (strategy.type === 'scalping' && Math.random() > 0.7) await executeScalpingTrade(strategy);
-      else if (strategy.type === 'swing' && Math.random() > 0.9) await executeSwingTrade(strategy);
+      if (strategy.type === 'scalping') await executeScalpingTrade(strategy);
+      else if (strategy.type === 'swing') await executeSwingTrade(strategy);
     } catch (error) {
       console.error('Trading error:', error);
     }
