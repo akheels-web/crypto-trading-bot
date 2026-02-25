@@ -100,15 +100,23 @@ app.use('/api', (_req: any, res: any, next: any) => {
   next();
 });
 
+// ─── Binance API Host Helper ──────────────────────────────────────────────────
+function getBinanceHost(): string {
+  if (process.env.USE_TESTNET === 'true') {
+    return 'testnet.binance.vision';
+  }
+  return process.env.BINANCE_API_URL || 'api.binance.com';
+}
+
 // ─── Binance PUBLIC API helper (no auth needed) ─────────────────────────────
 function fetchFromBinance(apiPath: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'api.binance.com',
+      hostname: getBinanceHost(),
       path: apiPath,
       method: 'GET',
       headers: { 'Accept': 'application/json' },
-      timeout: 8000
+      timeout: 10000
     };
     const req = https.request(options, (res) => {
       let data = '';
@@ -141,14 +149,14 @@ function fetchFromBinanceSigned(apiPath: string, queryParams: Record<string, str
 
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'api.binance.com',
+      hostname: getBinanceHost(),
       path: `${apiPath}?${fullQuery}`,
       method: 'GET',
       headers: {
         'Accept': 'application/json',
         'X-MBX-APIKEY': apiKey
       },
-      timeout: 8000
+      timeout: 10000
     };
     const req = https.request(options, (res) => {
       let data = '';
@@ -180,14 +188,14 @@ function postToBinanceSigned(apiPath: string, queryParams: Record<string, string
 
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'api.binance.com',
+      hostname: getBinanceHost(),
       path: `${apiPath}?${fullQuery}`,
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'X-MBX-APIKEY': apiKey
       },
-      timeout: 8000
+      timeout: 10000
     };
     const req = https.request(options, (res) => {
       let data = '';
