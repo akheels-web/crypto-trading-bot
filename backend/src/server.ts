@@ -518,17 +518,23 @@ async function executeScalpingTrade(strategy: any) {
   const checkInterval = setInterval(async () => {
     const latestPrice = prices[strategy.symbol] || currentPrice;
 
-    // Simulate slight random movement if price hasn't updated
-    const closePrice = latestPrice * (1 + (Math.random() * 0.004 - 0.002));
+    // Simulate slight random movement if price hasn't updated ONLY in paper trading
+    const closePrice = botSettings.paperTrading
+      ? latestPrice * (1 + (Math.random() * 0.004 - 0.002))
+      : latestPrice;
 
     const grossRevenue = closePrice * tradeAmount;
-    const sellFee = grossRevenue * BINANCE_FEE_RATE;
-    const netProfit = (grossRevenue - sellFee) - (buyCost + buyFee);
+    const sellFee = botSettings.paperTrading ? (grossRevenue * BINANCE_FEE_RATE) : 0; // if live, Binance auto deducts fee from base asset, we just need to account for it in our target calculation
+    const realSellFee = grossRevenue * BINANCE_FEE_RATE;
+
+    // In live trading, netProfit must be strictly greater than targetProfitUsd + realSellFee + buyFee
+    const netProfit = (grossRevenue - realSellFee) - (buyCost + buyFee);
 
     // Target minProfit is user configured (e.g. 0.1% to 1%). 
     // We convert it to a target dollar amount based on investment.
     const targetProfitUsd = buyCost * (strategy.minProfit / 100);
-    const stopLossUsd = -1 * (buyCost * (strategy.maxLoss / 100));
+    // Offset stopLossUsd by the fees, otherwise tight stop losses (e.g. 0.1%) trigger instantly because fees are 0.2%
+    const stopLossUsd = -1 * (buyCost * (strategy.maxLoss / 100)) - (realSellFee + buyFee);
 
     // Only close if we hit target profit after fees OR hit stop loss
     if (netProfit >= targetProfitUsd || netProfit <= stopLossUsd) {
@@ -621,17 +627,24 @@ async function executeSwingTrade(strategy: any) {
       }
     }
 
+    const latestPrice = prices[strategy.symbol] || currentPrice;
     const profitPercent = (Math.random() - 0.3) * 0.05;
-    const closePrice = currentPrice * (1 + profitPercent);
+
+    // Simulate slight random movement ONLY in paper trading
+    const closePrice = botSettings.paperTrading
+      ? currentPrice * (1 + profitPercent)
+      : latestPrice;
+
     const grossRevenue = closePrice * tradeAmount;
-    const exitFee = grossRevenue * BINANCE_FEE_RATE;
+    const exitFee = botSettings.paperTrading ? (grossRevenue * BINANCE_FEE_RATE) : 0;
+    const realExitFee = grossRevenue * BINANCE_FEE_RATE;
 
     const grossProfit = tradeType === 'buy'
       ? (closePrice - currentPrice) * tradeAmount
       : (currentPrice - closePrice) * tradeAmount;
 
     // Net profit accounts for entry and exit fees
-    const netProfit = grossProfit - (entryFee + exitFee);
+    const netProfit = grossProfit - (entryFee + realExitFee);
 
     trade.status = 'closed';
     trade.profit = netProfit;
