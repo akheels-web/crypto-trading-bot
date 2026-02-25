@@ -656,10 +656,21 @@ function App() {
       const res = await fetch('/api/strategies');
       if (!res.ok) return;
       const data = await res.json();
-      // Merge backend active state into frontend strategies (keeps UI fields like performance, winRate)
+      // Merge backend active state and real calculated performance stats into frontend strategies
       setStrategies(prev => prev.map(s => {
         const backend = data.find((b: any) => b.id === s.id);
-        return backend ? { ...s, active: backend.active, minProfit: backend.minProfit, maxLoss: backend.maxLoss, positionSize: backend.positionSize } : s;
+        if (!backend) return s;
+        // Merge configuration explicitly, and override static stats with real stats
+        return {
+          ...s,
+          active: backend.active,
+          minProfit: backend.minProfit,
+          maxLoss: backend.maxLoss,
+          positionSize: backend.positionSize,
+          trades: backend.trades ?? s.trades,
+          winRate: backend.winRate ?? s.winRate,
+          performance: backend.performance ?? s.performance
+        };
       }));
     } catch { /* backend offline — keep default state */ }
   };
@@ -898,9 +909,11 @@ function App() {
                 </p>
               </div>
               <div className="text-right">
-                <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Total P&L</p>
-                <p className="font-mono font-bold text-emerald-400">
-                  +${totalProfit.toLocaleString()}
+                <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {paperTrading ? 'Paper P&L' : 'Real P&L'}
+                </p>
+                <p className={`font-mono font-bold ${totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </p>
               </div>
               {/* Theme Toggle */}
@@ -974,17 +987,26 @@ function App() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-slate-400">Portfolio Value</p>
+                      <p className="text-sm text-slate-400">
+                        {paperTrading ? 'Paper Portfolio Value' : 'Portfolio Value'}
+                      </p>
                       <p className="text-2xl font-bold text-white">
-                        {portfolioConfigured && portfolioBalance > 0
-                          ? `$${portfolioBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                          : `$${(totalProfit + 88800).toLocaleString()}`}
+                        {!paperTrading
+                          ? (portfolioConfigured && portfolioBalance > 0
+                            ? `$${portfolioBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                            : 'N/A')
+                          : `$${(10000 + totalProfit).toLocaleString()}`}
                       </p>
                     </div>
                     <Wallet className="w-8 h-8 text-emerald-400" />
                   </div>
                   <div className="mt-4 flex items-center gap-2">
-                    {portfolioConfigured && portfolioBalance > 0 ? (
+                    {paperTrading ? (
+                      <>
+                        <ArrowUpRight className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm text-slate-500">Starting balance: $10,000</span>
+                      </>
+                    ) : (portfolioConfigured && portfolioBalance > 0 ? (
                       <>
                         <ArrowUpRight className="w-4 h-4 text-emerald-400" />
                         <span className="text-sm text-emerald-400">Live Binance balance</span>
@@ -996,7 +1018,7 @@ function App() {
                           Add API keys to see real balance
                         </span>
                       </>
-                    )}
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -1603,7 +1625,7 @@ function App() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-slate-400">Today's Profit</p>
+                    <p className="text-sm text-slate-400">{paperTrading ? "Today's Paper Profit" : "Today's Real Profit"}</p>
                     <p className={`text-3xl font-bold ${dailyProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {dailyProfit >= 0 ? '+' : ''}${dailyProfit.toFixed(2)}
                     </p>
@@ -1713,15 +1735,16 @@ function App() {
                         <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Time</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Pair</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-slate-400">Type</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">Amount</th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">Price</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">Qty</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">Entry Price</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">Exit Price</th>
                         <th className="text-right py-3 px-4 text-sm font-medium text-slate-400">Profit</th>
                       </tr>
                     </thead>
                     <tbody>
                       {liveTradeHistory.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-500 text-sm">
+                          <td colSpan={7} className="py-8 text-center text-slate-500 text-sm">
                             {botRunning
                               ? 'Bot is running — trades will appear here as they execute'
                               : 'No trades yet — start the bot to begin trading'}
@@ -1750,6 +1773,9 @@ function App() {
                               </td>
                               <td className="py-3 px-4 text-sm text-right text-slate-300">
                                 ${trade.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-right text-slate-300">
+                                {trade.exitPrice ? `$${trade.exitPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
                               </td>
                               <td className={`py-3 px-4 text-sm text-right font-medium ${trade.profit == null ? 'text-slate-500'
                                 : trade.profit >= 0 ? 'text-emerald-400' : 'text-red-400'

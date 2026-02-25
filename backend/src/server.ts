@@ -173,13 +173,25 @@ app.get('/api/status', (req: any, res: any) => {
   const winningTrades = tradeHistory.filter(t => t.profit && t.profit > 0).length;
   const winRate = tradeHistory.length > 0
     ? Math.round((winningTrades / tradeHistory.length) * 100)
-    : 67;
+    : 0; // Default to 0 before trades exist
+
+  // Calculate unrealized profit for active trades based on live prices
+  let activeTradesProfitable = 0;
+  activeTrades.forEach(trade => {
+    const currentPrice = prices[trade.symbol] || trade.price;
+    const profit = trade.type === 'buy'
+      ? (currentPrice - trade.price) * trade.amount
+      : (trade.price - currentPrice) * trade.amount;
+
+    if (profit > 0) activeTradesProfitable++;
+  });
+
   res.json({
     botRunning,
     dailyProfit,
     totalProfit,
     activeTrades: activeTrades.length,
-    activeTradesProfitable: activeTrades.filter(t => t.profit && t.profit > 0).length,
+    activeTradesProfitable,
     totalTrades: tradeHistory.length,
     winRate,
     paperTrading: botSettings.paperTrading,
@@ -208,7 +220,26 @@ app.post('/api/bot/settings', (req: any, res: any) => {
 
 // ── Strategies — persisted to data/strategies.json ─────────────
 app.get('/api/strategies', (req: any, res: any) => {
-  res.json(strategies);
+  // Dynamically calculate strategy performance and win rate
+  const enrichedStrategies = strategies.map((s: any) => {
+    const strategyTrades = tradeHistory.filter(t => t.strategyId === s.id);
+    const profitTrades = strategyTrades.filter(t => t.profit && t.profit > 0);
+
+    const winRate = strategyTrades.length > 0
+      ? Math.round((profitTrades.length / strategyTrades.length) * 100)
+      : 0;
+
+    const totalProfit = strategyTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
+
+    return {
+      ...s,
+      trades: strategyTrades.length,
+      winRate,
+      performance: parseFloat(totalProfit.toFixed(2)) // Display raw P&L as performance score
+    };
+  });
+
+  res.json(enrichedStrategies);
 });
 
 // PATCH: update any field on a strategy (active, minProfit, maxLoss, positionSize)
@@ -378,10 +409,11 @@ app.get('/health', (req: any, res: any) => {
 // ═══════════════════════════════════════════════════════════════
 
 async function executeScalpingTrade(strategy: any) {
-  const currentPrice = prices[strategy.symbol];
+  const currentPrice = prices[strategy.symbol] || 1;
   const tradeAmount = strategy.amount / currentPrice;
   const trade: any = {
     id: Date.now().toString(),
+    strategyId: strategy.id,
     symbol: strategy.symbol,
     type: 'buy',
     amount: tradeAmount,
@@ -393,21 +425,25 @@ async function executeScalpingTrade(strategy: any) {
   activeTrades.push(trade);
   console.log(`[SCALPING] Bought ${tradeAmount.toFixed(6)} ${strategy.symbol} at $${currentPrice}`);
   setTimeout(() => {
-    const closePrice = currentPrice * (1 + (Math.random() * 0.003 - 0.001));
+    const closePrice = currentPrice * (1 + (Math.random() * 0.003 - 0.001)); // Slight random fluctuation
     const profit = (closePrice - currentPrice) * tradeAmount;
-    trade.status = 'closed'; trade.profit = profit;
+    trade.status = 'closed';
+    trade.profit = profit;
+    trade.exitPrice = closePrice;
+
     dailyProfit += profit; totalProfit += profit;
     tradeHistory.push({ ...trade });
     activeTrades = activeTrades.filter(t => t.id !== trade.id);
-    console.log(`[SCALPING] Sold ${strategy.symbol}, Profit: $${profit.toFixed(2)}`);
+    console.log(`[SCALPING] Sold ${strategy.symbol} at $${closePrice.toFixed(2)}, Profit: $${profit.toFixed(2)}`);
   }, 30000 + Math.random() * 60000);
 }
 
 async function executeSwingTrade(strategy: any) {
-  const currentPrice = prices[strategy.symbol];
+  const currentPrice = prices[strategy.symbol] || 1;
   const tradeAmount = strategy.amount / currentPrice;
   const trade: any = {
     id: Date.now().toString(),
+    strategyId: strategy.id,
     symbol: strategy.symbol,
     type: Math.random() > 0.5 ? 'buy' : 'sell',
     amount: tradeAmount,
@@ -419,16 +455,21 @@ async function executeSwingTrade(strategy: any) {
   activeTrades.push(trade);
   console.log(`[SWING] ${trade.type.toUpperCase()} ${tradeAmount.toFixed(6)} ${strategy.symbol} at $${currentPrice}`);
   setTimeout(() => {
+    // Determine realistic swing trade exit
     const profitPercent = (Math.random() - 0.3) * 0.05;
     const closePrice = currentPrice * (1 + profitPercent);
     const profit = trade.type === 'buy'
       ? (closePrice - currentPrice) * tradeAmount
       : (currentPrice - closePrice) * tradeAmount;
-    trade.status = 'closed'; trade.profit = profit;
+
+    trade.status = 'closed';
+    trade.profit = profit;
+    trade.exitPrice = closePrice;
+
     dailyProfit += profit; totalProfit += profit;
     tradeHistory.push({ ...trade });
     activeTrades = activeTrades.filter(t => t.id !== trade.id);
-    console.log(`[SWING] Closed ${strategy.symbol}, Profit: $${profit.toFixed(2)}`);
+    console.log(`[SWING] Closed ${strategy.symbol} at $${closePrice.toFixed(2)}, Profit: $${profit.toFixed(2)}`);
   }, 300000 + Math.random() * 600000);
 }
 
