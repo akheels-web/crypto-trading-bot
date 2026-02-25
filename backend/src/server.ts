@@ -470,7 +470,7 @@ function formatQuantity(symbol: string, amount: number): string {
 
 async function executeScalpingTrade(strategy: any) {
   const currentPrice = prices[strategy.symbol] || 1;
-  const rawAmount = strategy.amount / currentPrice;
+  const rawAmount = strategy.positionSize / currentPrice;
   const tradeQuantityStr = formatQuantity(strategy.symbol, rawAmount);
   const tradeAmount = parseFloat(tradeQuantityStr);
 
@@ -536,7 +536,7 @@ async function executeScalpingTrade(strategy: any) {
 
 async function executeSwingTrade(strategy: any) {
   const currentPrice = prices[strategy.symbol] || 1;
-  const rawAmount = strategy.amount / currentPrice;
+  const rawAmount = strategy.positionSize / currentPrice;
   const tradeQuantityStr = formatQuantity(strategy.symbol, rawAmount);
   const tradeAmount = parseFloat(tradeQuantityStr);
   const tradeType = Math.random() > 0.5 ? 'buy' : 'sell';
