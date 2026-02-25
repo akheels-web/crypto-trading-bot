@@ -644,6 +644,10 @@ setInterval(async () => {
   if (!botRunning) return;
   for (const strategy of strategies.filter((s: any) => s.active)) {
     try {
+      // Prevent bot from opening multiple concurrent trades for the same strategy
+      const isAlreadyTrading = activeTrades.some(t => t.strategyId === strategy.id);
+      if (isAlreadyTrading) continue;
+
       if (strategy.type === 'scalping' && Math.random() > 0.7) await executeScalpingTrade(strategy);
       else if (strategy.type === 'swing' && Math.random() > 0.9) await executeSwingTrade(strategy);
     } catch (error) {
